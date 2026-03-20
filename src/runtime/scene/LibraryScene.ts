@@ -110,6 +110,8 @@ export class LibraryScene extends Phaser.Scene {
   private lobster!: Phaser.GameObjects.Container;
   private lobsterBody: Phaser.GameObjects.Sprite | Phaser.GameObjects.Arc | null = null;
   private lobsterRoute: Point[] = [];
+  private lobsterContextBar: Phaser.GameObjects.Graphics | null = null;
+  private lobsterContextRemaining = 1; // 0–1, starts full
   private agentActors: AgentActor[] = [];
 
   private roomLayer!: Phaser.GameObjects.Graphics;
@@ -306,6 +308,15 @@ export class LibraryScene extends Phaser.Scene {
     this.lastTelemetryAt = snapshot.generatedAt;
     this.focusResourceId = snapshot.focus.resourceId;
     this.focusDetail = snapshot.focus.detail;
+
+    // Update context bar if data available
+    if (snapshot.mainActorContext) {
+      const remaining = snapshot.mainActorContext.remaining;
+      if (this.lobsterContextRemaining !== remaining) {
+        this.lobsterContextRemaining = remaining;
+        this.drawContextBar(remaining);
+      }
+    }
 
     this.telemetryResources.clear();
     for (const resource of snapshot.resources) {
@@ -1652,6 +1663,11 @@ export class LibraryScene extends Phaser.Scene {
     this.lobster.setDepth(this.layerToDepth('actor', firstNode.y));
     this.lastReachedZoneId = firstNode.roomId;
     this.updateLobsterVisual('idle');
+
+    // Context bar — lives inside the lobster container, drawn above the sprite
+    this.lobsterContextBar = this.add.graphics();
+    this.lobster.add(this.lobsterContextBar);
+    this.drawContextBar(1); // starts full/green
   }
 
   private spawnAmbientPropFx(): void {
@@ -2472,6 +2488,55 @@ export class LibraryScene extends Phaser.Scene {
       return 'moving';
     }
     return 'idle';
+  }
+
+  /**
+   * Draw (or redraw) the context-window bar above the main lobster.
+   * @param remaining — fraction 0–1 (1 = full context available, 0 = exhausted)
+   */
+  private drawContextBar(remaining: number): void {
+    if (!this.lobsterContextBar) {
+      return;
+    }
+    const actor = this.protocols.sceneArt.actor;
+    const barWidth = actor ? Math.round(actor.displaySize.width * 0.72) : 44;
+    const barHeight = 5;
+    const barX = -Math.round(barWidth / 2);
+
+    // Vertically position above the sprite — use anchorOffset if defined
+    const anchorOffsetY = actor?.anchorOffset?.y ?? 0;
+    const spriteHalfH = actor ? Math.round(actor.displaySize.height / 2) : 24;
+    const barY = anchorOffsetY - spriteHalfH - 10;
+
+    // Interpolate color: green → lime → yellow → orange → red
+    const pct = Math.max(0, Math.min(1, remaining));
+    let barColor: number;
+    if (pct >= 0.70) {
+      barColor = 0x44ff88; // green
+    } else if (pct >= 0.45) {
+      barColor = 0xaaff44; // lime
+    } else if (pct >= 0.25) {
+      barColor = 0xffcc00; // yellow
+    } else if (pct >= 0.10) {
+      barColor = 0xff8800; // orange
+    } else {
+      barColor = 0xff4444; // red
+    }
+
+    this.lobsterContextBar.clear();
+
+    // Background track
+    this.lobsterContextBar.fillStyle(0x000000, 0.36);
+    this.lobsterContextBar.fillRoundedRect(barX - 1, barY - 1, barWidth + 2, barHeight + 2, 3);
+
+    // Fill
+    const fillWidth = Math.max(2, Math.round(barWidth * pct));
+    this.lobsterContextBar.fillStyle(barColor, 0.92);
+    this.lobsterContextBar.fillRoundedRect(barX, barY, fillWidth, barHeight, 2);
+
+    // Subtle border
+    this.lobsterContextBar.lineStyle(1, 0xffffff, 0.18);
+    this.lobsterContextBar.strokeRoundedRect(barX, barY, barWidth, barHeight, 2);
   }
 
   private updateLobsterVisual(mode: WorkMode): void {

@@ -1679,6 +1679,38 @@ async function buildLiveResources({ itemResourceIds = null, includeExcerpt = tru
   const codexSessions = await safeJsonRead(codexSessionIndexPath, {});
   const mainSessionCount = Object.keys(mainSessions || {}).length;
   const codexSessionCount = Object.keys(codexSessions || {}).length;
+
+  // Infer context usage from the most-recently-updated main-agent session
+  const mainActorContext = (() => {
+    const sessions = Object.values(mainSessions || {});
+    if (sessions.length === 0) return null;
+    // Pick the session updated most recently
+    const active = sessions.reduce((best, s) =>
+      (s.updatedAt || '') > (best.updatedAt || '') ? s : best
+    , sessions[0]);
+
+    // contextTokens = model's max window limit (not current usage).
+    // Actual context size ≈ cacheRead + cacheWrite (compacted history) + inputTokens
+    const cacheRead = Number(active.cacheRead ?? 0);
+    const cacheWrite = Number(active.cacheWrite ?? 0);
+    const inputTokens = Number(active.inputTokens ?? 0);
+    const usedTokens = cacheRead + cacheWrite + inputTokens;
+    if (usedTokens <= 0) return null;
+
+    const modelId = String(active.model || '').toLowerCase();
+    // contextTokens field = model's max window (set by OpenClaw)
+    const reportedMax = Number(active.contextTokens ?? 0);
+    const mappedMax =
+      modelId.includes('gemini') ? 1_000_000
+      : (modelId.includes('sonnet-4-6') || modelId.includes('opus-4-6')) ? 1_000_000
+      : modelId.includes('claude') ? 200_000
+      : modelId.includes('gpt-4o') ? 128_000
+      : 200_000;
+    // Use reported max if plausible (> 50k), otherwise fall back to mapped
+    const maxTokens = reportedMax > 50_000 ? reportedMax : mappedMax;
+    const remaining = Math.max(0, Math.min(1, 1 - usedTokens / maxTokens));
+    return { tokens: usedTokens, maxTokens, remaining };
+  })();
   const agentScan = await latestFromTargets([
     path.join(OPENCLAW_ROOT, 'agents'),
     path.join(OPENCLAW_ROOT, 'subagents', 'runs.json'),
@@ -2391,7 +2423,8 @@ async function buildLiveResources({ itemResourceIds = null, includeExcerpt = tru
   return {
     resources: liveResources,
     focus,
-    activeAgents
+    activeAgents,
+    mainActorContext
   };
 }
 
@@ -2637,7 +2670,7 @@ export async function createOpenClawSnapshot({ mock = false, includeItems = true
   const requestedItemResourceIds = includeItems
     ? (itemResourceIds ? new Set(itemResourceIds) : null)
     : new Set();
-  const { resources, focus, activeAgents } = await buildLiveResources({ itemResourceIds: requestedItemResourceIds, includeExcerpt });
+  const { resources, focus, activeAgents, mainActorContext } = await buildLiveResources({ itemResourceIds: requestedItemResourceIds, includeExcerpt });
   maybeAppendEvents(resources);
 
   const snapshot = {
@@ -2646,7 +2679,8 @@ export async function createOpenClawSnapshot({ mock = false, includeItems = true
     resources,
     recentEvents: eventLog.slice(-12),
     focus,
-    activeAgents
+    activeAgents,
+    ...(mainActorContext ? { mainActorContext } : {})
   };
   return includeItems ? snapshot : stripSnapshotItems(snapshot);
 }
