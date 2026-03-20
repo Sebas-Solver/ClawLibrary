@@ -2900,6 +2900,32 @@ async function refreshTelemetry(): Promise<void> {
       prevActiveAgentIds = currentAgentIds;
     }
 
+    // Apply focus zones from focus-*.json files (written by subagents/processes)
+    void (async () => {
+      try {
+        const focusResponse = await fetch('/api/openclaw/agent-focus', { cache: 'no-store' });
+        if (!focusResponse.ok) return;
+        const focusData = (await focusResponse.json()) as {
+          ok: boolean;
+          focuses: Array<{ runId: string; resourceId: string; detail?: string }>;
+        };
+        if (!focusData.ok) return;
+        const sceneReady = getActiveScene();
+        if (!sceneReady) return;
+        const focusMap = new Map(focusData.focuses.map((f) => [f.runId, f]));
+        // Apply to subagents
+        for (const agent of currentAgents) {
+          const focus = focusMap.get(agent.id);
+          sceneReady.setAgentActorFocus(agent.id, (focus?.resourceId as ResourcePartitionId) ?? null);
+        }
+        // Apply to exec-processes (prefixed with proc:)
+        for (const [procId] of prevActiveProcessIds.entries()) {
+          const focus = focusMap.get(procId);
+          sceneReady.setAgentActorFocus(`proc:${procId}`, (focus?.resourceId as ResourcePartitionId) ?? null);
+        }
+      } catch { /* best-effort */ }
+    })();
+
     // Diff activeProcesses to spawn/despawn exec-process actors (amber capys, slow)
     void (async () => {
       try {

@@ -93,6 +93,7 @@ type AgentActor = {
   body: Phaser.GameObjects.Sprite | Phaser.GameObjects.Arc | null;
   route: Point[];
   activeZoneId: ResourcePartitionId | null;
+  focusZoneId: ResourcePartitionId | null;
   workCursor: number;
   nameTag: Phaser.GameObjects.Text | null;
 };
@@ -351,33 +352,13 @@ export class LibraryScene extends Phaser.Scene {
       return;
     }
 
-    // exec-process actors start inside the 'agent' room
-    let startNode: typeof nodes[0];
-    if (kind === 'exec-process') {
-      const agentRoom = this.protocols.mapLogic.rooms.find((r) => r.id === 'agent');
-      const agentNodes = agentRoom
-        ? nodes.filter((node) => {
-            const [rx, ry, rw, rh] = agentRoom.bounds;
-            return node.x >= rx && node.x <= rx + rw && node.y >= ry && node.y <= ry + rh;
-          })
-        : [];
-      const agentZoneAnchor = this.protocols.mapLogic.workZones.find((z) => z.id === 'agent')?.anchor;
-      if (agentNodes.length > 0) {
-        startNode = agentNodes[Math.floor(Math.random() * agentNodes.length)];
-      } else if (agentZoneAnchor) {
-        startNode = { id: 'agent-fallback', x: agentZoneAnchor.x, y: agentZoneAnchor.y, roomId: 'agent' };
-      } else {
-        startNode = nodes[0];
-      }
-    } else {
-      // Pick a start node different from the primary actor's position
-      const usableNodes = nodes.filter((node) => {
-        const dx = node.x - this.lobster.x;
-        const dy = node.y - this.lobster.y;
-        return Math.hypot(dx, dy) > 80;
-      });
-      startNode = usableNodes[Math.floor(Math.random() * usableNodes.length)] ?? nodes[0];
-    }
+    // Pick a start node different from the primary actor's position
+    const usableNodes = nodes.filter((node) => {
+      const dx = node.x - this.lobster.x;
+      const dy = node.y - this.lobster.y;
+      return Math.hypot(dx, dy) > 80;
+    });
+    const startNode = usableNodes[Math.floor(Math.random() * usableNodes.length)] ?? nodes[0];
 
     const children: Phaser.GameObjects.GameObject[] = [];
     const actor = this.protocols.sceneArt.actor;
@@ -438,11 +419,22 @@ export class LibraryScene extends Phaser.Scene {
       body,
       route: [],
       activeZoneId: null,
+      focusZoneId: null,
       workCursor: Math.floor(Math.random() * 100),
       nameTag
     };
 
     this.agentActors.push(agentActor);
+  }
+
+  public setAgentActorFocus(runId: string, focusZoneId: ResourcePartitionId | null): void {
+    const actor = this.agentActors.find((a) => a.id === runId);
+    if (!actor) return;
+    if (actor.focusZoneId === focusZoneId) return;
+    actor.focusZoneId = focusZoneId;
+    // Clear current route so next tick picks up the new focus zone
+    actor.route = [];
+    actor.activeZoneId = null;
   }
 
   public despawnAgentActor(runId: string): void {
@@ -472,9 +464,6 @@ export class LibraryScene extends Phaser.Scene {
     }
 
     if (actor.route.length === 0) {
-      // exec-process actors are confined to the 'agent' room walkable area
-      const isConfined = actor.kind === 'exec-process';
-
       // Pick next zone to wander to — exclude zones claimed by primary or other agents
       const claimedZones = new Set<string>();
       if (this.activeZoneId) {
@@ -491,45 +480,16 @@ export class LibraryScene extends Phaser.Scene {
 
       const allZones = this.protocols.mapLogic.workZones.filter((zone) => !claimedZones.has(zone.id));
 
-      // exec-process actors wander randomly inside the 'agent' room bounds
-      if (isConfined) {
-        const agentRoom = this.protocols.mapLogic.rooms.find((r) => r.id === 'agent');
-        if (agentRoom) {
-          const [rx, ry, rw, rh] = agentRoom.bounds;
-          const margin = 24;
-          // Try up to 12 random points inside the room until we find a walkable one
-          let target: Point | null = null;
-          for (let attempt = 0; attempt < 12; attempt += 1) {
-            const candidate: Point = {
-              x: rx + margin + Math.random() * (rw - margin * 2),
-              y: ry + margin + Math.random() * (rh - margin * 2)
-            };
-            if (this.isWalkablePoint(candidate)) {
-              target = candidate;
-              break;
-            }
-          }
-          // Fallback: use the agent zone anchor
-          if (!target) {
-            const agentZone = this.protocols.mapLogic.workZones.find((z) => z.id === 'agent');
-            target = agentZone?.anchor ?? { x: rx + rw / 2, y: ry + rh / 2 };
-          }
-          actor.activeZoneId = 'agent';
-          const maskRoute = this.computeMaskRoute({ x: actor.container.x, y: actor.container.y }, target);
-          if (maskRoute && maskRoute.length > 0) {
-            actor.route = maskRoute;
-          } else {
-            actor.route = [target];
-          }
-          return;
-        }
-      }
-
       if (allZones.length === 0) {
         return;
       }
 
-      const zone = allZones[actor.workCursor % allZones.length];
+      // If actor has a focus zone, route there; otherwise pick next in rotation
+      const focusZone = actor.focusZoneId
+        ? allZones.find((z) => z.id === actor.focusZoneId) ?? allZones[actor.workCursor % allZones.length]
+        : allZones[actor.workCursor % allZones.length];
+
+      const zone = focusZone;
       actor.workCursor += 1;
       actor.activeZoneId = zone.id;
 
