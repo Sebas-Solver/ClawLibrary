@@ -83,6 +83,17 @@ type ResourceSelectEvent = {
   anchor?: Point;
 };
 
+type AgentActor = {
+  id: string;
+  label: string;
+  container: Phaser.GameObjects.Container;
+  body: Phaser.GameObjects.Sprite | Phaser.GameObjects.Arc | null;
+  route: Point[];
+  activeZoneId: ResourcePartitionId | null;
+  workCursor: number;
+  nameTag: Phaser.GameObjects.Text | null;
+};
+
 export class LibraryScene extends Phaser.Scene {
   private readonly protocols = loadProtocols();
   private growthState: GrowthState = { ...INITIAL_GROWTH };
@@ -91,6 +102,7 @@ export class LibraryScene extends Phaser.Scene {
   private lobster!: Phaser.GameObjects.Container;
   private lobsterBody: Phaser.GameObjects.Sprite | Phaser.GameObjects.Arc | null = null;
   private lobsterRoute: Point[] = [];
+  private agentActors: AgentActor[] = [];
 
   private roomLayer!: Phaser.GameObjects.Graphics;
   private zoneLayer!: Phaser.GameObjects.Graphics;
@@ -259,6 +271,9 @@ export class LibraryScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     this.advanceLobster(delta);
     this.positionThoughtBubble();
+    for (const actor of this.agentActors) {
+      this.advanceAgentActor(actor, delta);
+    }
   }
 
   public getGrowthState(): GrowthState {
@@ -322,6 +337,179 @@ export class LibraryScene extends Phaser.Scene {
     this.updateResourceAnimations();
     this.syncWorkStatus();
     this.maybeProcessTelemetryQueue();
+  }
+
+  public spawnAgentActor(runId: string, label: string): void {
+    if (this.agentActors.some((actor) => actor.id === runId)) {
+      return;
+    }
+    const nodes = this.protocols.mapLogic.walkGraph.nodes;
+    if (nodes.length === 0) {
+      return;
+    }
+
+    // Pick a start node different from the primary actor's position
+    const usableNodes = nodes.filter((node) => {
+      const dx = node.x - this.lobster.x;
+      const dy = node.y - this.lobster.y;
+      return Math.hypot(dx, dy) > 80;
+    });
+    const startNode = usableNodes[Math.floor(Math.random() * usableNodes.length)] ?? nodes[0];
+
+    const children: Phaser.GameObjects.GameObject[] = [];
+    const actor = this.protocols.sceneArt.actor;
+    const variant = this.resolveActorVariant();
+    const idleVisual = this.resolveActorMode('idle');
+
+    // Subtle shadow
+    if (actor?.shadow) {
+      const shadow = this.add.ellipse(0, actor.shadow.offsetY, actor.shadow.width * 0.85, actor.shadow.height * 0.85, 0x081018, actor.shadow.alpha * 0.7);
+      children.push(shadow);
+    }
+
+    let body: Phaser.GameObjects.Sprite | Phaser.GameObjects.Arc | null = null;
+    if (actor && variant && idleVisual) {
+      const sprite = this.add.sprite(actor.anchorOffset?.x ?? 0, actor.anchorOffset?.y ?? 0, idleVisual.textureKey);
+      sprite.setDisplaySize(actor.displaySize.width * 0.88, actor.displaySize.height * 0.88);
+      // Cool tint to differentiate from primary
+      sprite.setTint(0xaad4ff);
+      children.push(sprite);
+      body = sprite;
+    } else {
+      const fallback = this.add.circle(0, 0, 14, 0x4fa8e8, 1);
+      fallback.setStrokeStyle(2, 0x0a1a2e, 0.8);
+      children.push(fallback);
+      body = fallback;
+    }
+
+    const container = this.add.container(startNode.x, startNode.y, children);
+    container.setDepth(this.layerToDepth('actor', startNode.y) - 0.5);
+    container.setAlpha(0);
+    this.tweens.add({ targets: container, alpha: 1, duration: 600, ease: 'Sine.Out' });
+
+    // Floating name tag
+    const shortLabel = label.slice(0, 10);
+    const nameTag = this.add.text(startNode.x, startNode.y - 36, shortLabel, {
+      color: '#b8d8ff',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      fontSize: '10px',
+      backgroundColor: 'rgba(4, 12, 28, 0.72)',
+      padding: { left: 5, right: 5, top: 3, bottom: 3 }
+    });
+    nameTag.setOrigin(0.5, 1);
+    nameTag.setDepth(this.layerToDepth('fx_overlay') + 11);
+
+    const agentActor: AgentActor = {
+      id: runId,
+      label,
+      container,
+      body,
+      route: [],
+      activeZoneId: null,
+      workCursor: Math.floor(Math.random() * 100),
+      nameTag
+    };
+
+    this.agentActors.push(agentActor);
+  }
+
+  public despawnAgentActor(runId: string): void {
+    const index = this.agentActors.findIndex((actor) => actor.id === runId);
+    if (index === -1) {
+      return;
+    }
+    const actor = this.agentActors[index];
+    this.tweens.add({
+      targets: actor.container,
+      alpha: 0,
+      duration: 400,
+      ease: 'Sine.In',
+      onComplete: () => {
+        actor.container.destroy();
+      }
+    });
+    actor.nameTag?.destroy();
+    this.agentActors.splice(index, 1);
+  }
+
+  private advanceAgentActor(actor: AgentActor, deltaMs: number): void {
+    // Update name tag position
+    if (actor.nameTag) {
+      const bounds = actor.container.getBounds();
+      actor.nameTag.setPosition(actor.container.x, bounds.top - 4);
+    }
+
+    if (actor.route.length === 0) {
+      // Pick next zone to wander to — exclude zones claimed by primary or other agents
+      const claimedZones = new Set<string>();
+      if (this.activeZoneId) {
+        claimedZones.add(this.activeZoneId);
+      }
+      if (this.lastReachedZoneId) {
+        claimedZones.add(this.lastReachedZoneId);
+      }
+      for (const other of this.agentActors) {
+        if (other.id !== actor.id && other.activeZoneId) {
+          claimedZones.add(other.activeZoneId);
+        }
+      }
+
+      const zones = this.protocols.mapLogic.workZones.filter((zone) => !claimedZones.has(zone.id));
+      if (zones.length === 0) {
+        return;
+      }
+
+      const zone = zones[actor.workCursor % zones.length];
+      actor.workCursor += 1;
+      actor.activeZoneId = zone.id;
+
+      const maskRoute = this.computeMaskRoute({ x: actor.container.x, y: actor.container.y }, zone.anchor);
+      if (maskRoute && maskRoute.length > 0) {
+        actor.route = maskRoute;
+      } else {
+        const route = computeRoute(
+          this.protocols.mapLogic.walkGraph,
+          { x: actor.container.x, y: actor.container.y },
+          zone.anchor,
+          this.protocols.mapLogic.collisionPolygons,
+          this.protocols.mapLogic.walkableZones ?? [],
+          (sample) => this.isWalkablePoint(sample)
+        );
+        actor.route = this.routePointsForTarget(route, zone.anchor);
+      }
+
+      if (actor.route.length === 0) {
+        actor.activeZoneId = null;
+      }
+      return;
+    }
+
+    const target = actor.route[0];
+    const speedPerMs = 0.28;
+    const step = speedPerMs * deltaMs;
+    const dx = target.x - actor.container.x;
+    const dy = target.y - actor.container.y;
+    const distance = Math.hypot(dx, dy);
+
+    if (actor.body instanceof Phaser.GameObjects.Sprite) {
+      actor.body.setFlipX(dx < 0);
+    }
+
+    if (distance <= step) {
+      actor.container.x = target.x;
+      actor.container.y = target.y;
+      actor.container.setDepth(this.layerToDepth('actor', actor.container.y) - 0.5);
+      actor.route.shift();
+
+      if (actor.route.length === 0) {
+        // Arrived — linger briefly then clear zone so next frame picks new destination
+        actor.activeZoneId = null;
+      }
+    } else {
+      actor.container.x += (dx / distance) * step;
+      actor.container.y += (dy / distance) * step;
+      actor.container.setDepth(this.layerToDepth('actor', actor.container.y) - 0.5);
+    }
   }
 
   public setLocale(nextLocale: UiLocale): void {

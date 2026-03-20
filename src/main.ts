@@ -184,6 +184,7 @@ type DebugPoint = {
 };
 
 let lastSnapshot: OpenClawSnapshot | null = null;
+let prevActiveAgentIds = new Set<string>();
 const resourceDetailItemsById = new Map<ResourcePartitionId, OpenClawResourceItem[]>();
 const resourceDetailLoadedById = new Set<ResourcePartitionId>();
 const resourceDetailRequestsById = new Map<ResourcePartitionId, Promise<void>>();
@@ -2877,6 +2878,24 @@ async function refreshTelemetry(): Promise<void> {
     lastSnapshot = (await response.json()) as OpenClawSnapshot;
     const activeScene = getActiveScene();
     activeScene?.applyTelemetrySnapshot(lastSnapshot);
+
+    // Diff activeAgents to spawn/despawn secondary actors
+    const currentAgents = lastSnapshot.activeAgents ?? [];
+    const currentAgentIds = new Set(currentAgents.map((agent) => agent.id));
+    if (activeScene) {
+      for (const agent of currentAgents) {
+        if (!prevActiveAgentIds.has(agent.id)) {
+          activeScene.spawnAgentActor(agent.id, agent.label);
+        }
+      }
+      for (const prevId of prevActiveAgentIds) {
+        if (!currentAgentIds.has(prevId)) {
+          activeScene.despawnAgentActor(prevId);
+        }
+      }
+    }
+    prevActiveAgentIds = currentAgentIds;
+
     ensureSceneBindings();
     syncResourceControls();
     renderRoomModal();

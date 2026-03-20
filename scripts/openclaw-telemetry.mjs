@@ -1667,6 +1667,12 @@ async function buildLiveResources({ itemResourceIds = null, includeExcerpt = tru
   const agentDirs = (await safeReadDir(path.join(OPENCLAW_ROOT, 'agents'))).filter((entry) => entry.isDirectory()).length;
   const subagentRuns = await safeJsonRead(path.join(OPENCLAW_ROOT, 'subagents', 'runs.json'), { runs: {} });
   const agentRunCount = subagentRuns && typeof subagentRuns.runs === 'object' ? Object.keys(subagentRuns.runs).length : 0;
+  const activeAgents = subagentRuns && typeof subagentRuns.runs === 'object'
+    ? Object.entries(subagentRuns.runs)
+        .filter(([, run]) => run && run.status === 'running')
+        .slice(0, 6)
+        .map(([id, run]) => ({ id, label: run.label ?? id, status: 'running' }))
+    : [];
   const mainSessionIndexPath = path.join(OPENCLAW_ROOT, 'agents', 'main', 'sessions', 'sessions.json');
   const codexSessionIndexPath = path.join(OPENCLAW_ROOT, 'agents', 'codex', 'sessions', 'sessions.json');
   const mainSessions = await safeJsonRead(mainSessionIndexPath, {});
@@ -2384,7 +2390,8 @@ async function buildLiveResources({ itemResourceIds = null, includeExcerpt = tru
 
   return {
     resources: liveResources,
-    focus
+    focus,
+    activeAgents
   };
 }
 
@@ -2604,7 +2611,8 @@ function buildMockSnapshot() {
       occurredAt: '2026-03-06T13:28:00.000Z',
       detail: 'latest docs/tasks/TODO-2026-03-06.md',
       reason: 'deterministic QA snapshot'
-    }
+    },
+    activeAgents: []
   };
 }
 
@@ -2629,7 +2637,7 @@ export async function createOpenClawSnapshot({ mock = false, includeItems = true
   const requestedItemResourceIds = includeItems
     ? (itemResourceIds ? new Set(itemResourceIds) : null)
     : new Set();
-  const { resources, focus } = await buildLiveResources({ itemResourceIds: requestedItemResourceIds, includeExcerpt });
+  const { resources, focus, activeAgents } = await buildLiveResources({ itemResourceIds: requestedItemResourceIds, includeExcerpt });
   maybeAppendEvents(resources);
 
   const snapshot = {
@@ -2637,7 +2645,8 @@ export async function createOpenClawSnapshot({ mock = false, includeItems = true
     generatedAt,
     resources,
     recentEvents: eventLog.slice(-12),
-    focus
+    focus,
+    activeAgents
   };
   return includeItems ? snapshot : stripSnapshotItems(snapshot);
 }

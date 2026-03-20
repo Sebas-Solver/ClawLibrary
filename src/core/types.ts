@@ -351,10 +351,17 @@ export type OpenClawFocus = {
   reason: string;
 };
 
+export type ActiveAgent = {
+  id: string;
+  label: string;
+  status: string;
+};
+
 export type OpenClawSnapshot = {
   mode: 'live' | 'mock';
   generatedAt: string;
   resources: OpenClawResourceTelemetry[];
   recentEvents: OpenClawAccessEvent[];
   focus: OpenClawFocus;
+  activeAgents?: ActiveAgent[];
 };
