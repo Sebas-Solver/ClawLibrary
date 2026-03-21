@@ -2510,8 +2510,8 @@ export class LibraryScene extends Phaser.Scene {
       return;
     }
     const actor = this.protocols.sceneArt.actor;
-    const barWidth = actor ? Math.round(actor.displaySize.width * 1.08) : 66;
-    const barHeight = 5;
+    const barWidth = actor ? Math.round(actor.displaySize.width * 0.72) : 44;
+    const barHeight = 8; // 150% of original 5px
 
     // Position below the thought text label, centered on lobster X
     const lobsterX = this.lobster?.x ?? 0;
