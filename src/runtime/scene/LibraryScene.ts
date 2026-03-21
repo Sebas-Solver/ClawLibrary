@@ -1664,10 +1664,9 @@ export class LibraryScene extends Phaser.Scene {
     this.lastReachedZoneId = firstNode.roomId;
     this.updateLobsterVisual('idle');
 
-    // Context bar — lives inside the lobster container, drawn above the sprite
+    // Context bar — independent graphics, positioned below the thought label
     this.lobsterContextBar = this.add.graphics();
-    this.lobsterContextBar.setRotation(0); // perfectly horizontal
-    this.lobster.add(this.lobsterContextBar);
+    this.lobsterContextBar.setDepth(this.layerToDepth('fx_overlay', this.lobster.y) + 11);
     this.drawContextBar(1); // starts full/green
   }
 
@@ -1770,7 +1769,11 @@ export class LibraryScene extends Phaser.Scene {
     }
 
     const target = this.lobsterRoute[0];
-    const speedPerMs = 0.32;
+    // Speed scales with context remaining: full HP = 0.32, near-empty = 0.098 (sub-agent speed)
+    const maxSpeed = 0.32;
+    const minSpeed = 0.098;
+    const hp = this.lobsterContextRemaining; // 0–1
+    const speedPerMs = minSpeed + (maxSpeed - minSpeed) * hp;
     const step = speedPerMs * deltaMs;
 
     const dx = target.x - this.lobster.x;
@@ -2099,6 +2102,12 @@ export class LibraryScene extends Phaser.Scene {
     const bubbleY = this.lobster.getBounds().top - 12;
     this.lobsterThoughtText.setPosition(this.lobster.x, bubbleY);
     this.lobsterThoughtText.setDepth(this.layerToDepth('fx_overlay') + 12);
+
+    // Reposition the context bar below the thought label
+    if (this.lobsterContextBar) {
+      this.lobsterContextBar.setDepth(this.layerToDepth('fx_overlay', this.lobster.y) + 11);
+      this.drawContextBar(this.lobsterContextRemaining);
+    }
   }
 
   private findWorkZone(point: Point): WorkZone | null {
@@ -2492,7 +2501,8 @@ export class LibraryScene extends Phaser.Scene {
   }
 
   /**
-   * Draw (or redraw) the context-window bar above the main lobster.
+   * Draw (or redraw) the context-window bar below the thought label, above the main lobster.
+   * Now uses absolute scene coordinates (not relative to lobster container).
    * @param remaining — fraction 0–1 (1 = full context available, 0 = exhausted)
    */
   private drawContextBar(remaining: number): void {
@@ -2502,12 +2512,14 @@ export class LibraryScene extends Phaser.Scene {
     const actor = this.protocols.sceneArt.actor;
     const barWidth = actor ? Math.round(actor.displaySize.width * 0.72) : 44;
     const barHeight = 5;
-    const barX = -Math.round(barWidth / 2);
 
-    // Vertically position above the sprite — use anchorOffset if defined
-    const anchorOffsetY = actor?.anchorOffset?.y ?? 0;
-    const spriteHalfH = actor ? Math.round(actor.displaySize.height / 2) : 24;
-    const barY = anchorOffsetY - spriteHalfH - 10;
+    // Position below the thought text label, centered on lobster X
+    const lobsterX = this.lobster?.x ?? 0;
+    const thoughtBottom = this.lobsterThoughtText
+      ? this.lobsterThoughtText.y + 4
+      : (this.lobster ? this.lobster.getBounds().top - 8 : 0);
+    const barX = lobsterX - Math.round(barWidth / 2);
+    const barY = thoughtBottom;
 
     // Interpolate color: green → lime → yellow → orange → red
     const pct = Math.max(0, Math.min(1, remaining));
