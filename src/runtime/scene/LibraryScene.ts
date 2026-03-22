@@ -111,7 +111,7 @@ export class LibraryScene extends Phaser.Scene {
   private lobsterBody: Phaser.GameObjects.Sprite | Phaser.GameObjects.Arc | null = null;
   private lobsterRoute: Point[] = [];
   private lobsterContextBar: Phaser.GameObjects.Graphics | null = null;
-  private lobsterContextRemaining = 1; // 0–1, starts full
+  private lobsterContextRemaining: number | null = 1; // 0–1, starts full; null = no data
   private agentActors: AgentActor[] = [];
 
   private roomLayer!: Phaser.GameObjects.Graphics;
@@ -316,6 +316,10 @@ export class LibraryScene extends Phaser.Scene {
         this.lobsterContextRemaining = remaining;
         this.drawContextBar(remaining);
       }
+    } else if (this.lobsterContextRemaining !== null) {
+      // No context data available — reset bar to avoid stale state
+      this.lobsterContextRemaining = null;
+      this.drawContextBar(null);
     }
 
     this.telemetryResources.clear();
@@ -2494,7 +2498,7 @@ export class LibraryScene extends Phaser.Scene {
    * Draw (or redraw) the context-window bar above the main lobster.
    * @param remaining — fraction 0–1 (1 = full context available, 0 = exhausted)
    */
-  private drawContextBar(remaining: number): void {
+  private drawContextBar(remaining: number | null): void {
     if (!this.lobsterContextBar) {
       return;
     }
@@ -2509,7 +2513,7 @@ export class LibraryScene extends Phaser.Scene {
     const barY = anchorOffsetY - spriteHalfH - 10;
 
     // Interpolate color: green → lime → yellow → orange → red
-    const pct = Math.max(0, Math.min(1, remaining));
+    const pct = Math.max(0, Math.min(1, remaining ?? 0));
     let barColor: number;
     if (pct >= 0.70) {
       barColor = 0x44ff88; // green

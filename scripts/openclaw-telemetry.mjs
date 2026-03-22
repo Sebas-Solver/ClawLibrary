@@ -1682,12 +1682,13 @@ async function buildLiveResources({ itemResourceIds = null, includeExcerpt = tru
 
   // Infer context usage from the most-recently-updated main-agent session
   const mainActorContext = (() => {
-    const sessions = Object.values(mainSessions || {});
-    if (sessions.length === 0) return null;
-    // Pick the session updated most recently
-    const active = sessions.reduce((best, s) =>
+    const sessions = mainSessions || {};
+    // Prefer the canonical main session key
+    const mainSession = sessions['agent:main:main'];
+    const active = mainSession || Object.values(sessions).reduce((best, s) =>
       (s.updatedAt || '') > (best.updatedAt || '') ? s : best
-    , sessions[0]);
+    , Object.values(sessions)[0]);
+    if (!active) return null;
 
     // contextTokens = model's max window limit (not current usage).
     // Actual context size ≈ cacheRead + cacheWrite (compacted history) + inputTokens
