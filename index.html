@@ -2824,14 +2824,26 @@
         attachExpandListeners(chatMessages);
       }
 
+      // Build a stable fingerprint for a message array to detect real changes
+      function messagesFingerprint(msgs) {
+        return msgs.map(function(m) { return m.role + ':' + (m.text || '').length + ':' + (m.timestamp || ''); }).join('|');
+      }
+      var lastFingerprint = '';
+
       function renderMessages(messages) {
         if (!chatMessages) return;
         var prevMessages = lastMessages;
         lastMessages = messages;
+
+        // Fast check: if nothing changed at all, skip entirely (prevents any layout thrash)
+        var fp = messagesFingerprint(messages);
+        if (fp === lastFingerprint && messages.length === lastMsgCount) return;
+
         var atBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 40;
 
         if (messages.length < lastMsgCount) {
           // History cleared — full re-render
+          lastFingerprint = fp;
           fullRenderMessages(messages);
           chatMessages.scrollTop = chatMessages.scrollHeight;
           lastMsgCount = messages.length;
@@ -2839,21 +2851,22 @@
         }
 
         if (messages.length === lastMsgCount) {
+          lastFingerprint = fp;
           // Same count — check if last message changed (streaming update)
           if (messages.length > 0) {
             var lastIdx = messages.length - 1;
             var prevText = prevMessages.length > 0 ? prevMessages[lastIdx].text : null;
             var newText = messages[lastIdx].text;
             if (prevText !== newText) {
-              // Update only the last bubble's text in-place
+              // Update only the last bubble's text in-place (no full re-render)
               var lastBubble = chatMessages.querySelector('.chat-bubble[data-idx="' + lastIdx + '"]');
               if (lastBubble) {
                 var textEl = lastBubble.querySelector('.chat-bubble-text');
-                if (textEl) textEl.innerHTML = esc(newText);
-              } else {
-                // Bubble not found — fall back to full re-render
-                fullRenderMessages(messages);
+                if (textEl) {
+                  textEl.textContent = newText; // textContent avoids layout thrash from innerHTML
+                }
               }
+              // Only scroll if user was already at bottom
               if (atBottom) chatMessages.scrollTop = chatMessages.scrollHeight;
             }
           }
@@ -2862,6 +2875,7 @@
         }
 
         // messages.length > lastMsgCount — append new messages only
+        lastFingerprint = fp;
         var newMessages = messages.slice(lastMsgCount);
         var frag = document.createDocumentFragment();
         var tmp = document.createElement('div');
