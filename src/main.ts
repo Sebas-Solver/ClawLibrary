@@ -2926,9 +2926,9 @@ async function refreshTelemetry(): Promise<void> {
         const sceneReady = getActiveScene();
         if (!sceneReady) return;
         const focusMap = new Map(focusData.focuses.map((f) => [f.runId, f]));
-        // Apply to subagents
+        // Apply to subagents — match by id first, then fallback to label
         for (const agent of currentAgents) {
-          const focus = focusMap.get(agent.id);
+          const focus = focusMap.get(agent.id) ?? focusMap.get(agent.label);
           sceneReady.setAgentActorFocus(agent.id, (focus?.resourceId as ResourcePartitionId) ?? null);
           sceneReady.setAgentActorStatus(agent.id, focus?.detail ?? '');
         }
