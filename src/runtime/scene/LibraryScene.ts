@@ -2123,6 +2123,29 @@ export class LibraryScene extends Phaser.Scene {
     const isAlertish = /(alert|blocked|failed|error|panic|alarm)/.test(lowerDetail);
     const isHappyMoment = Date.now() < this.celebrationUntil || /completed|done|access completed/.test(lowerDetail);
 
+    // If we have a live focusDetail from auto-focus / snapshot, show it directly
+    // instead of the generic hardcoded text. Trim to fit in the bubble.
+    if (this.focusDetail && this.focusDetail.trim().length > 0 && this.focusResourceId !== 'break_room') {
+      const detail = this.focusDetail.trim();
+      // Split at ~28 chars on a word boundary for a two-line bubble
+      const maxLen = 28;
+      let line1 = detail;
+      let line2 = '';
+      if (detail.length > maxLen) {
+        const splitIdx = detail.lastIndexOf(' ', maxLen);
+        if (splitIdx > 0) {
+          line1 = detail.slice(0, splitIdx);
+          line2 = detail.slice(splitIdx + 1).slice(0, maxLen);
+        } else {
+          line1 = detail.slice(0, maxLen);
+          line2 = detail.slice(maxLen, maxLen * 2);
+        }
+      }
+      this.lobsterThoughtText.setText(line2 ? `${line1}\n${line2}` : line1);
+      this.positionThoughtBubble();
+      return;
+    }
+
     let lines: string[];
     if (this.workMode === 'moving') {
       lines = this.locale === 'zh'
