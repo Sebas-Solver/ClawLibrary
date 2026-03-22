@@ -2930,11 +2930,13 @@ async function refreshTelemetry(): Promise<void> {
         for (const agent of currentAgents) {
           const focus = focusMap.get(agent.id);
           sceneReady.setAgentActorFocus(agent.id, (focus?.resourceId as ResourcePartitionId) ?? null);
+          sceneReady.setAgentActorStatus(agent.id, focus?.detail ?? '');
         }
         // Apply to exec-processes (prefixed with proc:)
         for (const [procId] of prevActiveProcessIds.entries()) {
           const focus = focusMap.get(procId);
           sceneReady.setAgentActorFocus(`proc:${procId}`, (focus?.resourceId as ResourcePartitionId) ?? null);
+          sceneReady.setAgentActorStatus(`proc:${procId}`, focus?.detail ?? '');
         }
       } catch { /* best-effort */ }
     })();

@@ -96,6 +96,8 @@ type AgentActor = {
   focusZoneId: ResourcePartitionId | null;
   workCursor: number;
   nameTag: Phaser.GameObjects.Text | null;
+  /** Thought bubble showing last milestone/status */
+  thoughtBubble: Phaser.GameObjects.Text | null;
   /** Current visual mode — only used for subagents (exec-processes stay static) */
   visualMode: WorkMode;
   /** Timestamp (ms) when working animation should end and revert to idle */
@@ -397,12 +399,12 @@ export class LibraryScene extends Phaser.Scene {
       children.push(shadow);
     }
 
-    // Visual style: subagents = cool blue tint, exec-processes = warm amber tint (smaller, slower)
+    // Visual style: subagents = natural (no tint), exec-processes = warm amber tint (smaller, slower)
     const isExecProcess = kind === 'exec-process';
     const scaleFactor = isExecProcess ? 0.72 : 0.88;
-    const tintColor = isExecProcess ? 0xffd080 : 0xaad4ff;
+    const tintColor = isExecProcess ? 0xffd080 : null; // no tint for subagents
     const fallbackColor = isExecProcess ? 0xe8a830 : 0x4fa8e8;
-    const nameTagColor = isExecProcess ? '#ffe4a0' : '#b8d8ff';
+    const nameTagColor = isExecProcess ? '#ffe4a0' : '#d7e2ff';
     const nameTagBg = isExecProcess ? 'rgba(28, 18, 4, 0.76)' : 'rgba(4, 12, 28, 0.72)';
     const nameTagPrefix = isExecProcess ? '⚙ ' : '';
 
@@ -410,7 +412,7 @@ export class LibraryScene extends Phaser.Scene {
     if (actor && variant && idleVisual) {
       const sprite = this.add.sprite(actor.anchorOffset?.x ?? 0, actor.anchorOffset?.y ?? 0, idleVisual.textureKey);
       sprite.setDisplaySize(actor.displaySize.width * scaleFactor, actor.displaySize.height * scaleFactor);
-      sprite.setTint(tintColor);
+      if (tintColor) sprite.setTint(tintColor);
       children.push(sprite);
       body = sprite;
     } else {
@@ -437,6 +439,22 @@ export class LibraryScene extends Phaser.Scene {
     nameTag.setOrigin(0.5, 1);
     nameTag.setDepth(this.layerToDepth('fx_overlay') + 11);
 
+    // Thought bubble — shows last milestone/status, styled like the main capy's thought bubble
+    const thoughtBubble = this.add.text(startNode.x, startNode.y - 52, '', {
+      color: '#f3fff9',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      fontSize: '10px',
+      lineSpacing: 2,
+      align: 'center',
+      backgroundColor: 'rgba(9, 24, 22, 0.82)',
+      padding: { left: 6, right: 6, top: 4, bottom: 4 },
+      wordWrap: { width: 140 }
+    });
+    thoughtBubble.setOrigin(0.5, 1);
+    thoughtBubble.setDepth(this.layerToDepth('fx_overlay') + 12);
+    thoughtBubble.setStroke('#04100f', 2);
+    thoughtBubble.setVisible(false); // hidden until first status update
+
     const agentActor: AgentActor = {
       id: runId,
       label,
@@ -448,6 +466,7 @@ export class LibraryScene extends Phaser.Scene {
       focusZoneId: null,
       workCursor: Math.floor(Math.random() * 100),
       nameTag,
+      thoughtBubble,
       visualMode: 'idle',
       workingUntil: 0
     };
@@ -470,6 +489,18 @@ export class LibraryScene extends Phaser.Scene {
     actor.activeZoneId = null;
   }
 
+  /** Update the thought bubble text for a sub-agent or exec-process */
+  public setAgentActorStatus(runId: string, statusText: string): void {
+    const actor = this.agentActors.find((a) => a.id === runId);
+    if (!actor || !actor.thoughtBubble) return;
+    if (statusText) {
+      actor.thoughtBubble.setText(statusText);
+      actor.thoughtBubble.setVisible(true);
+    } else {
+      actor.thoughtBubble.setVisible(false);
+    }
+  }
+
   public despawnAgentActor(runId: string): void {
     const index = this.agentActors.findIndex((actor) => actor.id === runId);
     if (index === -1) {
@@ -486,6 +517,7 @@ export class LibraryScene extends Phaser.Scene {
       }
     });
     actor.nameTag?.destroy();
+    actor.thoughtBubble?.destroy();
     this.agentActors.splice(index, 1);
   }
 
@@ -493,10 +525,13 @@ export class LibraryScene extends Phaser.Scene {
   private readonly BOTTOM_ROOM_IDS: ReadonlyArray<string> = ['document', 'agent', 'break_room'];
 
   private advanceAgentActor(actor: AgentActor, deltaMs: number): void {
-    // Update name tag position
+    // Update name tag and thought bubble positions
     if (actor.nameTag) {
       const bounds = actor.container.getBounds();
       actor.nameTag.setPosition(actor.container.x, bounds.top - 4);
+      if (actor.thoughtBubble) {
+        actor.thoughtBubble.setPosition(actor.container.x, bounds.top - 4 - actor.nameTag.height - 2);
+      }
     }
 
     if (actor.route.length === 0) {
@@ -1649,7 +1684,7 @@ export class LibraryScene extends Phaser.Scene {
     const idleVisual = this.resolveActorMode('idle');
     if (actor && variant && idleVisual) {
       const sprite = this.add.sprite(actor.anchorOffset?.x ?? 0, actor.anchorOffset?.y ?? 0, idleVisual.textureKey);
-      sprite.setDisplaySize(actor.displaySize.width, actor.displaySize.height);
+      sprite.setDisplaySize(actor.displaySize.width * 1.2, actor.displaySize.height * 1.2);
       children.push(sprite);
       this.lobsterBody = sprite;
     } else {
@@ -2560,7 +2595,7 @@ export class LibraryScene extends Phaser.Scene {
       return;
     }
 
-    this.lobsterBody.setDisplaySize(actor.displaySize.width, actor.displaySize.height);
+    this.lobsterBody.setDisplaySize(actor.displaySize.width * 1.2, actor.displaySize.height * 1.2);
 
     const animationKey = this.actorAnimationKey(variant.id, actorMode.textureKey);
     if (actorMode.kind === 'spritesheet' && actorMode.frameCount && this.anims.exists(animationKey)) {
