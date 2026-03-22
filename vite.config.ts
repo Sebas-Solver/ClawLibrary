@@ -551,12 +551,36 @@ function telemetryMiddleware() {
           snapshot = await refreshLiveOverview();
         }
       }
+      // Override focus with main session auto-focus if available and recent
+      let overriddenSnapshot = snapshot;
+      if (!wantsMock) {
+        try {
+          const mainFocusPath = path.join(clawlibraryConfig.openclaw.home, 'subagents', 'focus-main.json');
+          const mainFocusStat = await fs.stat(mainFocusPath).catch(() => null);
+          if (mainFocusStat && (Date.now() - mainFocusStat.mtimeMs) < 90_000) {
+            const mainFocusRaw = await fs.readFile(mainFocusPath, 'utf8');
+            const mainFocus = JSON.parse(mainFocusRaw) as { resourceId?: string; detail?: string; _isMain?: boolean };
+            if (mainFocus._isMain && mainFocus.detail) {
+              overriddenSnapshot = {
+                ...snapshot,
+                focus: {
+                  ...snapshot.focus,
+                  resourceId: mainFocus.resourceId || snapshot.focus.resourceId,
+                  detail: mainFocus.detail,
+                  reason: 'main session active'
+                }
+              };
+            }
+          }
+        } catch { /* best-effort: fall through to original snapshot */ }
+      }
+
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       res.setHeader('Cache-Control', 'no-store');
       res.end(JSON.stringify(wantsMock ? snapshot : {
-        ...snapshot,
-        resources: snapshot.resources.map(({ items, ...resource }) => resource)
+        ...overriddenSnapshot,
+        resources: overriddenSnapshot.resources.map(({ items, ...resource }) => resource)
       }));
     } catch (error) {
       res.statusCode = 500;

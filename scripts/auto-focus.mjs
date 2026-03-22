@@ -316,6 +316,97 @@ async function processAgent(agent) {
   } catch { /* best-effort */ }
 }
 
+// ── Main session focus ──────────────────────────────────────────────────────
+
+const MAIN_SESSION_KEY = 'agent:main:main';
+const MAIN_FOCUS_PATH = path.join(SUBAGENTS_DIR, 'focus-main.json');
+const MAIN_IDLE_THRESHOLD_MS = 60_000; // If no tool call in 60s, consider idle
+let lastMainStatus = '';
+let lastMainLlmCall = 0;
+
+async function processMainSession() {
+  // Find the main session JSONL
+  const sessionId = getSessionId(MAIN_SESSION_KEY);
+  if (!sessionId) return;
+
+  const jsonlPath = path.join(SESSIONS_DIR, `${sessionId}.jsonl`);
+  const recentTools = extractRecentToolCalls(jsonlPath);
+
+  if (recentTools.length === 0) {
+    return;
+  }
+
+  // Check if most recent tool call is recent enough (within threshold)
+  const lastTool = recentTools[recentTools.length - 1];
+  const tsMs = lastTool.timestamp
+    ? (typeof lastTool.timestamp === 'number' ? lastTool.timestamp : new Date(lastTool.timestamp).getTime())
+    : 0;
+  const lastToolAge = tsMs ? Date.now() - tsMs : Infinity;
+
+  // If we can't determine age from timestamp, check file mtime
+  let isActive = lastToolAge < MAIN_IDLE_THRESHOLD_MS;
+  if (!isActive && lastToolAge === Infinity) {
+    // Fallback: check JSONL file mtime
+    try {
+      const stat = fs.statSync(jsonlPath);
+      isActive = (Date.now() - stat.mtimeMs) < MAIN_IDLE_THRESHOLD_MS;
+    } catch { /* skip */ }
+  }
+
+  if (!isActive) {
+    // Don't actively clean up — let the mtime-based check in vite.config.ts
+    // handle expiration (90s). This avoids race conditions where the file
+    // gets deleted between auto-focus ticks while the main session is still active.
+    return;
+  }
+
+  // Generate status from rule-based matching
+  let status = ruleBasedStatus(lastTool.name, lastTool.args);
+
+  // Try LLM enrichment
+  const now = Date.now();
+  if (now - lastMainLlmCall > LLM_COOLDOWN_MS && recentTools.length >= 2 && OPENAI_API_KEY) {
+    lastMainLlmCall = now;
+    const enriched = await llmEnrich('Main ClawBot session — responding to user requests', recentTools);
+    if (enriched) status = enriched;
+  }
+
+  if (!status) return;
+  if (lastMainStatus === status) return;
+  lastMainStatus = status;
+
+  console.log(`[auto-focus] Main session status: ${status} (age: ${Math.round(lastToolAge/1000)}s)`);
+
+  // Write focus file for main session
+  const focusData = {
+    resourceId: 'gateway',
+    detail: status,
+    _auto: true,
+    _isMain: true,
+    _updatedAt: new Date().toISOString()
+  };
+
+  try {
+    const payload = JSON.stringify(focusData);
+    fs.writeFileSync(MAIN_FOCUS_PATH, payload);
+    console.log(`[auto-focus] Wrote focus-main.json: ${payload.slice(0, 80)}`);
+  } catch (err) {
+    console.error(`[auto-focus] Failed to write focus-main.json:`, err.message);
+  }
+}
+
+function cleanupMainFocus() {
+  try {
+    if (fs.existsSync(MAIN_FOCUS_PATH)) {
+      const data = JSON.parse(fs.readFileSync(MAIN_FOCUS_PATH, 'utf8'));
+      if (data._auto && data._isMain) {
+        fs.unlinkSync(MAIN_FOCUS_PATH);
+        lastMainStatus = '';
+      }
+    }
+  } catch { /* best-effort */ }
+}
+
 async function tick() {
   const agents = getActiveSubagents();
   
@@ -324,6 +415,11 @@ async function tick() {
       await processAgent(agent);
     } catch { /* best-effort per agent */ }
   }
+
+  // Also process the main session
+  try {
+    await processMainSession();
+  } catch { /* best-effort */ }
 }
 
 // ── Start ───────────────────────────────────────────────────────────────────
