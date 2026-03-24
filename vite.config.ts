@@ -804,6 +804,7 @@ export default defineConfig({
   server: {
     host: clawlibraryConfig.server.host,
     port: clawlibraryConfig.server.port,
-    strictPort: true
+    strictPort: true,
+    allowedHosts: 'all'
   }
 });
