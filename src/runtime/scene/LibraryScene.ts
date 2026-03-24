@@ -96,10 +96,14 @@ type AgentActor = {
   focusZoneId: ResourcePartitionId | null;
   workCursor: number;
   nameTag: Phaser.GameObjects.Text | null;
+  /** Thought bubble showing last milestone/status */
+  thoughtBubble: Phaser.GameObjects.Text | null;
   /** Current visual mode — only used for subagents (exec-processes stay static) */
   visualMode: WorkMode;
   /** Timestamp (ms) when working animation should end and revert to idle */
   workingUntil: number;
+  /** Timestamp (ms) until which the actor lingers at its destination before picking a new one */
+  lingerUntil: number;
 };
 
 export class LibraryScene extends Phaser.Scene {
@@ -401,12 +405,12 @@ export class LibraryScene extends Phaser.Scene {
       children.push(shadow);
     }
 
-    // Visual style: subagents = cool blue tint, exec-processes = warm amber tint (smaller, slower)
+    // Visual style: subagents = natural (no tint), exec-processes = warm amber tint (smaller, slower)
     const isExecProcess = kind === 'exec-process';
     const scaleFactor = isExecProcess ? 0.72 : 0.88;
-    const tintColor = isExecProcess ? 0xffd080 : 0xaad4ff;
+    const tintColor = isExecProcess ? 0xffd080 : null; // no tint for subagents
     const fallbackColor = isExecProcess ? 0xe8a830 : 0x4fa8e8;
-    const nameTagColor = isExecProcess ? '#ffe4a0' : '#b8d8ff';
+    const nameTagColor = isExecProcess ? '#ffe4a0' : '#d7e2ff';
     const nameTagBg = isExecProcess ? 'rgba(28, 18, 4, 0.76)' : 'rgba(4, 12, 28, 0.72)';
     const nameTagPrefix = isExecProcess ? '⚙ ' : '';
 
@@ -414,7 +418,7 @@ export class LibraryScene extends Phaser.Scene {
     if (actor && variant && idleVisual) {
       const sprite = this.add.sprite(actor.anchorOffset?.x ?? 0, actor.anchorOffset?.y ?? 0, idleVisual.textureKey);
       sprite.setDisplaySize(actor.displaySize.width * scaleFactor, actor.displaySize.height * scaleFactor);
-      sprite.setTint(tintColor);
+      if (tintColor) sprite.setTint(tintColor);
       children.push(sprite);
       body = sprite;
     } else {
@@ -434,12 +438,28 @@ export class LibraryScene extends Phaser.Scene {
     const nameTag = this.add.text(startNode.x, startNode.y - 36, shortLabel, {
       color: nameTagColor,
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      fontSize: '10px',
+      fontSize: '13px',
       backgroundColor: nameTagBg,
       padding: { left: 5, right: 5, top: 3, bottom: 3 }
     });
     nameTag.setOrigin(0.5, 1);
     nameTag.setDepth(this.layerToDepth('fx_overlay') + 11);
+
+    // Thought bubble — shows last milestone/status, styled like the main capy's thought bubble
+    const thoughtBubble = this.add.text(startNode.x, startNode.y - 52, '', {
+      color: '#f3fff9',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      fontSize: '10px',
+      lineSpacing: 2,
+      align: 'center',
+      backgroundColor: 'rgba(9, 24, 22, 0.82)',
+      padding: { left: 6, right: 6, top: 4, bottom: 4 },
+      wordWrap: { width: 140 }
+    });
+    thoughtBubble.setOrigin(0.5, 1);
+    thoughtBubble.setDepth(this.layerToDepth('fx_overlay') + 12);
+    thoughtBubble.setStroke('#04100f', 2);
+    thoughtBubble.setVisible(false); // hidden until first status update
 
     const agentActor: AgentActor = {
       id: runId,
@@ -452,8 +472,10 @@ export class LibraryScene extends Phaser.Scene {
       focusZoneId: null,
       workCursor: Math.floor(Math.random() * 100),
       nameTag,
+      thoughtBubble,
       visualMode: 'idle',
-      workingUntil: 0
+      workingUntil: 0,
+      lingerUntil: 0
     };
 
     // Set initial animation for subagents
@@ -474,6 +496,18 @@ export class LibraryScene extends Phaser.Scene {
     actor.activeZoneId = null;
   }
 
+  /** Update the thought bubble text for a sub-agent or exec-process */
+  public setAgentActorStatus(runId: string, statusText: string): void {
+    const actor = this.agentActors.find((a) => a.id === runId);
+    if (!actor || !actor.thoughtBubble) return;
+    if (statusText) {
+      actor.thoughtBubble.setText(statusText);
+      actor.thoughtBubble.setVisible(true);
+    } else {
+      actor.thoughtBubble.setVisible(false);
+    }
+  }
+
   public despawnAgentActor(runId: string): void {
     const index = this.agentActors.findIndex((actor) => actor.id === runId);
     if (index === -1) {
@@ -490,6 +524,7 @@ export class LibraryScene extends Phaser.Scene {
       }
     });
     actor.nameTag?.destroy();
+    actor.thoughtBubble?.destroy();
     this.agentActors.splice(index, 1);
   }
 
@@ -497,20 +532,44 @@ export class LibraryScene extends Phaser.Scene {
   private readonly BOTTOM_ROOM_IDS: ReadonlyArray<string> = ['document', 'agent', 'break_room'];
 
   private advanceAgentActor(actor: AgentActor, deltaMs: number): void {
-    // Update name tag position
+    // Update name tag and thought bubble positions
     if (actor.nameTag) {
       const bounds = actor.container.getBounds();
       actor.nameTag.setPosition(actor.container.x, bounds.top - 4);
+      if (actor.thoughtBubble) {
+        actor.thoughtBubble.setPosition(actor.container.x, bounds.top - 4 - actor.nameTag.height - 2);
+      }
     }
 
     if (actor.route.length === 0) {
+      // Linger at destination before picking a new route (prevents jitter + frozen loops)
+      const now = Date.now();
+      if (actor.lingerUntil > 0 && now < actor.lingerUntil) {
+        // Still lingering — update visual but don't pick new route
+        if (actor.kind === 'subagent') {
+          const targetMode: WorkMode = actor.workingUntil > 0 && now < actor.workingUntil ? 'working' : 'idle';
+          if (actor.visualMode !== targetMode) {
+            actor.visualMode = targetMode;
+            this.updateAgentActorVisual(actor, targetMode);
+          }
+        }
+        return;
+      }
+
       // Subagent visual: if working timer expired, revert to idle
       if (actor.kind === 'subagent') {
-        const targetMode: WorkMode = actor.workingUntil > 0 && Date.now() < actor.workingUntil ? 'working' : 'idle';
+        const targetMode: WorkMode = actor.workingUntil > 0 && now < actor.workingUntil ? 'working' : 'idle';
         if (actor.visualMode !== targetMode) {
           actor.visualMode = targetMode;
           this.updateAgentActorVisual(actor, targetMode);
         }
+      }
+
+      // If we have a focusZoneId and we're already in that zone, linger longer (don't re-route to same spot)
+      if (actor.focusZoneId && actor.focusZoneId === actor.activeZoneId) {
+        actor.lingerUntil = now + 4000 + Math.random() * 3000; // 4-7s idle at focus zone
+        actor.activeZoneId = null;
+        return;
       }
 
       // Pick next zone to wander to — exclude zones claimed by primary or other agents
@@ -577,7 +636,7 @@ export class LibraryScene extends Phaser.Scene {
 
     const target = actor.route[0];
     // exec-processes: slow drift (they're background tasks). subagents: calm walk.
-    const speedPerMs = actor.kind === 'exec-process' ? 0.055 : 0.14;
+    const speedPerMs = actor.kind === 'exec-process' ? 0.055 : 0.098;
     const step = speedPerMs * deltaMs;
     const dx = target.x - actor.container.x;
     const dy = target.y - actor.container.y;
@@ -600,14 +659,18 @@ export class LibraryScene extends Phaser.Scene {
       actor.route.shift();
 
       if (actor.route.length === 0) {
-        // Arrived — subagent plays working animation briefly, then idle
+        // Arrived — set linger timer so they stay put for a while
+        const lingerMs = actor.focusZoneId
+          ? 5000 + Math.random() * 5000   // 5-10s at focus zone
+          : 2000 + Math.random() * 3000;  // 2-5s wandering
+        actor.lingerUntil = Date.now() + lingerMs;
+
+        // Subagent plays working animation briefly, then idle
         if (actor.kind === 'subagent') {
           actor.visualMode = 'working';
           actor.workingUntil = Date.now() + 1400;
           this.updateAgentActorVisual(actor, 'working');
         }
-        // linger briefly then clear zone so next frame picks new destination
-        actor.activeZoneId = null;
       }
     } else {
       actor.container.x += (dx / distance) * step;
@@ -1653,7 +1716,7 @@ export class LibraryScene extends Phaser.Scene {
     const idleVisual = this.resolveActorMode('idle');
     if (actor && variant && idleVisual) {
       const sprite = this.add.sprite(actor.anchorOffset?.x ?? 0, actor.anchorOffset?.y ?? 0, idleVisual.textureKey);
-      sprite.setDisplaySize(actor.displaySize.width, actor.displaySize.height);
+      sprite.setDisplaySize(actor.displaySize.width * 1.2, actor.displaySize.height * 1.2);
       children.push(sprite);
       this.lobsterBody = sprite;
     } else {
@@ -1668,9 +1731,9 @@ export class LibraryScene extends Phaser.Scene {
     this.lastReachedZoneId = firstNode.roomId;
     this.updateLobsterVisual('idle');
 
-    // Context bar — lives inside the lobster container, drawn above the sprite
+    // Context bar — independent graphics, positioned below the thought label
     this.lobsterContextBar = this.add.graphics();
-    this.lobster.add(this.lobsterContextBar);
+    this.lobsterContextBar.setDepth(this.layerToDepth('fx_overlay', this.lobster.y) + 11);
     this.drawContextBar(1); // starts full/green
   }
 
@@ -1773,7 +1836,11 @@ export class LibraryScene extends Phaser.Scene {
     }
 
     const target = this.lobsterRoute[0];
-    const speedPerMs = 0.32;
+    // Speed scales with context remaining: full HP = 0.32, near-empty = 0.098 (sub-agent speed)
+    const maxSpeed = 0.32;
+    const minSpeed = 0.098;
+    const hp = this.lobsterContextRemaining; // 0–1
+    const speedPerMs = minSpeed + (maxSpeed - minSpeed) * hp;
     const step = speedPerMs * deltaMs;
 
     const dx = target.x - this.lobster.x;
@@ -2060,6 +2127,29 @@ export class LibraryScene extends Phaser.Scene {
     const isAlertish = /(alert|blocked|failed|error|panic|alarm)/.test(lowerDetail);
     const isHappyMoment = Date.now() < this.celebrationUntil || /completed|done|access completed/.test(lowerDetail);
 
+    // If we have a live focusDetail from auto-focus / snapshot, show it directly
+    // instead of the generic hardcoded text. Trim to fit in the bubble.
+    if (this.focusDetail && this.focusDetail.trim().length > 0 && this.focusResourceId !== 'break_room') {
+      const detail = this.focusDetail.trim();
+      // Split at ~28 chars on a word boundary for a two-line bubble
+      const maxLen = 28;
+      let line1 = detail;
+      let line2 = '';
+      if (detail.length > maxLen) {
+        const splitIdx = detail.lastIndexOf(' ', maxLen);
+        if (splitIdx > 0) {
+          line1 = detail.slice(0, splitIdx);
+          line2 = detail.slice(splitIdx + 1).slice(0, maxLen);
+        } else {
+          line1 = detail.slice(0, maxLen);
+          line2 = detail.slice(maxLen, maxLen * 2);
+        }
+      }
+      this.lobsterThoughtText.setText(line2 ? `${line1}\n${line2}` : line1);
+      this.positionThoughtBubble();
+      return;
+    }
+
     let lines: string[];
     if (this.workMode === 'moving') {
       lines = this.locale === 'zh'
@@ -2102,6 +2192,12 @@ export class LibraryScene extends Phaser.Scene {
     const bubbleY = this.lobster.getBounds().top - 12;
     this.lobsterThoughtText.setPosition(this.lobster.x, bubbleY);
     this.lobsterThoughtText.setDepth(this.layerToDepth('fx_overlay') + 12);
+
+    // Reposition the context bar below the thought label
+    if (this.lobsterContextBar) {
+      this.lobsterContextBar.setDepth(this.layerToDepth('fx_overlay', this.lobster.y) + 11);
+      this.drawContextBar(this.lobsterContextRemaining);
+    }
   }
 
   private findWorkZone(point: Point): WorkZone | null {
@@ -2495,7 +2591,8 @@ export class LibraryScene extends Phaser.Scene {
   }
 
   /**
-   * Draw (or redraw) the context-window bar above the main lobster.
+   * Draw (or redraw) the context-window bar below the thought label, above the main lobster.
+   * Now uses absolute scene coordinates (not relative to lobster container).
    * @param remaining — fraction 0–1 (1 = full context available, 0 = exhausted)
    */
   private drawContextBar(remaining: number | null): void {
@@ -2504,13 +2601,15 @@ export class LibraryScene extends Phaser.Scene {
     }
     const actor = this.protocols.sceneArt.actor;
     const barWidth = actor ? Math.round(actor.displaySize.width * 0.72) : 44;
-    const barHeight = 5;
-    const barX = -Math.round(barWidth / 2);
+    const barHeight = 8; // 150% of original 5px
 
-    // Vertically position above the sprite — use anchorOffset if defined
-    const anchorOffsetY = actor?.anchorOffset?.y ?? 0;
-    const spriteHalfH = actor ? Math.round(actor.displaySize.height / 2) : 24;
-    const barY = anchorOffsetY - spriteHalfH - 10;
+    // Position below the thought text label, centered on lobster X
+    const lobsterX = this.lobster?.x ?? 0;
+    const thoughtBottom = this.lobsterThoughtText
+      ? this.lobsterThoughtText.y + 4
+      : (this.lobster ? this.lobster.getBounds().top - 8 : 0);
+    const barX = lobsterX - Math.round(barWidth / 2);
+    const barY = thoughtBottom;
 
     // Interpolate color: green → lime → yellow → orange → red
     const pct = Math.max(0, Math.min(1, remaining ?? 0));
@@ -2551,7 +2650,7 @@ export class LibraryScene extends Phaser.Scene {
       return;
     }
 
-    this.lobsterBody.setDisplaySize(actor.displaySize.width, actor.displaySize.height);
+    this.lobsterBody.setDisplaySize(actor.displaySize.width * 1.2, actor.displaySize.height * 1.2);
 
     const animationKey = this.actorAnimationKey(variant.id, actorMode.textureKey);
     if (actorMode.kind === 'spritesheet' && actorMode.frameCount && this.anims.exists(animationKey)) {

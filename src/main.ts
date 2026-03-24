@@ -52,7 +52,15 @@ const game = new Phaser.Game({
   parent: 'app',
   transparent: true,
   audio: {
-    noAudio: true
+    // AudioContext requires a user gesture before it can start.
+    // We resume it on the first pointerdown so the browser doesn't block it.
+    // (noAudio: true was set here before — it silenced the console warning but killed all sound)
+    context: (() => {
+      const ctx = new (window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)();
+      const resume = () => { void ctx.resume(); };
+      window.addEventListener('pointerdown', resume, { once: true });
+      return ctx;
+    })()
   },
   scale: {
     mode: Phaser.Scale.FIT,
@@ -758,6 +766,12 @@ function saveLocale(): void {
 
 function loadInfoPanelPreference(): void {
   try {
+    // If Chat panel is saved as visible, Info must be hidden (mutually exclusive)
+    const chatSaved = localStorage.getItem('clawlibrary-chat-visible');
+    if (chatSaved === '1') {
+      infoPanelVisible = false;
+      return;
+    }
     const saved = localStorage.getItem(INFO_PANEL_STORAGE_KEY);
     if (saved === '0') {
       infoPanelVisible = false;
@@ -2009,6 +2023,13 @@ function syncInfoTogglePosition(): void {
   if (!toggleInfoPanelButton) {
     return;
   }
+  // If Chat panel is active, hide the Info toggle entirely — no overlap
+  const chatActive = localStorage.getItem('clawlibrary-chat-visible') === '1';
+  if (chatActive) {
+    toggleInfoPanelButton.style.visibility = 'hidden';
+    return;
+  }
+  toggleInfoPanelButton.style.visibility = '';
   if (!infoPanelVisible) {
     toggleInfoPanelButton.style.bottom = '18px';
     return;
@@ -2913,15 +2934,17 @@ async function refreshTelemetry(): Promise<void> {
         const sceneReady = getActiveScene();
         if (!sceneReady) return;
         const focusMap = new Map(focusData.focuses.map((f) => [f.runId, f]));
-        // Apply to subagents
+        // Apply to subagents — match by id first, then fallback to label
         for (const agent of currentAgents) {
-          const focus = focusMap.get(agent.id);
+          const focus = focusMap.get(agent.id) ?? focusMap.get(agent.label);
           sceneReady.setAgentActorFocus(agent.id, (focus?.resourceId as ResourcePartitionId) ?? null);
+          sceneReady.setAgentActorStatus(agent.id, focus?.detail ?? '');
         }
         // Apply to exec-processes (prefixed with proc:)
         for (const [procId] of prevActiveProcessIds.entries()) {
           const focus = focusMap.get(procId);
           sceneReady.setAgentActorFocus(`proc:${procId}`, (focus?.resourceId as ResourcePartitionId) ?? null);
+          sceneReady.setAgentActorStatus(`proc:${procId}`, focus?.detail ?? '');
         }
       } catch { /* best-effort */ }
     })();

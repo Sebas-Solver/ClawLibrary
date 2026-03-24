@@ -50,6 +50,7 @@
         width: auto;
         height: auto;
         background: transparent;
+        transition: inset 300ms ease;
       }
 
       #app canvas {
@@ -316,7 +317,7 @@
         position: fixed;
         z-index: 110;
         left: 18px;
-        bottom: 18px;
+        bottom: 58px;
         width: min(360px, calc(100vw - 36px));
         display: grid;
         gap: 10px;
@@ -337,38 +338,69 @@
         pointer-events: none;
       }
 
+      /* Legacy — hidden, replaced by panel-switcher */
       .hud-activity-toggle {
+        display: none !important;
+      }
+
+      /* ── Panel switcher (Info | Chat) ─────────────────────────────── */
+      .panel-switcher {
         position: fixed;
         z-index: 116;
         left: 18px;
-        bottom: 184px;
-        border: 1px solid rgba(171, 218, 201, 0.34);
+        bottom: 18px;
+        display: flex;
+        gap: 0;
         border-radius: 999px;
-        padding: 4px 9px;
-        background: rgba(9, 24, 22, 0.74);
-        color: #d6eee5;
+        border: 1px solid rgba(171, 218, 201, 0.28);
+        background: rgba(9, 24, 22, 0.82);
+        backdrop-filter: blur(8px);
+        overflow: hidden;
+        transition: bottom 140ms ease;
+      }
+
+      .panel-switcher-btn {
+        border: none;
+        border-radius: 0;
+        padding: 5px 12px;
+        background: transparent;
+        color: rgba(152, 181, 172, 0.78);
         font-family: "VT323", monospace;
         font-size: 14px;
         line-height: 1;
         letter-spacing: 0.04em;
         cursor: pointer;
         transition:
-          bottom 140ms ease,
-          border-color 120ms ease,
-          transform 120ms ease,
           background 120ms ease,
           color 120ms ease;
+        min-height: 32px;
+        white-space: nowrap;
       }
 
-      .hud-activity-toggle:hover {
-        border-color: rgba(171, 218, 201, 0.72);
-        background: rgba(12, 31, 28, 0.86);
+      .panel-switcher-btn:first-child {
+        border-radius: 999px 0 0 999px;
+      }
+
+      .panel-switcher-btn:last-child {
+        border-radius: 0 999px 999px 0;
+      }
+
+      .panel-switcher-btn + .panel-switcher-btn {
+        border-left: 1px solid rgba(171, 218, 201, 0.18);
+      }
+
+      .panel-switcher-btn:hover {
+        background: rgba(12, 31, 28, 0.7);
         color: #f0fff9;
-        transform: translateY(-1px);
       }
 
-      body.info-collapsed .hud-activity-toggle {
-        bottom: 18px;
+      .panel-switcher-btn[data-active="true"] {
+        background: rgba(19, 46, 44, 0.9);
+        color: #d6eee5;
+      }
+
+      .panel-switcher-btn[data-active="true"]:hover {
+        background: rgba(22, 52, 50, 0.95);
       }
 
       .hud-stats {
@@ -530,6 +562,283 @@
         line-height: 1.28;
         text-shadow: 0 2px 10px rgba(0, 0, 0, 0.26);
         opacity: 0.92;
+      }
+
+      /* ── Live Chat panel ─────────────────────────────────────────── */
+      .hud-chat {
+        position: fixed;
+        z-index: 110;
+        left: 18px;
+        bottom: 58px;
+        width: min(432px, calc(100vw - 36px)); /* 360 * 1.2 = 432 */
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        pointer-events: auto;
+        transition:
+          opacity 140ms ease,
+          transform 140ms ease;
+        background: none;
+        border: none;
+        overflow: visible;
+        max-height: min(420px, calc(100vh - 120px));
+      }
+
+      body.chat-hidden .hud-chat {
+        opacity: 0;
+        transform: translateY(8px);
+        pointer-events: none;
+      }
+
+      .hud-chat-messages {
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 0;
+        scroll-behavior: smooth;
+        scrollbar-width: none;
+      }
+
+      .hud-chat-messages::-webkit-scrollbar { display: none; }
+
+      .chat-bubble {
+        display: grid;
+        gap: 2px;
+        padding: 3px 4px 3px 0;
+        background: none;
+        border: none;
+        position: relative;
+      }
+
+      .chat-bubble[data-role="user"] {
+        /* no extra style */
+      }
+
+      .chat-bubble[data-role="assistant"] {
+        /* no extra style */
+      }
+
+      .chat-bubble-meta {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+      }
+
+      .chat-bubble-name {
+        font-family: "VT323", monospace;
+        font-size: 26px;
+        line-height: 1;
+        letter-spacing: 0.04em;
+      }
+
+      .chat-bubble[data-role="user"] .chat-bubble-name {
+        color: var(--accent);
+      }
+
+      .chat-bubble[data-role="assistant"] .chat-bubble-name {
+        color: var(--accent-2);
+      }
+
+      .chat-bubble-time {
+        color: rgba(152, 181, 172, 0.62);
+        font-family: "VT323", monospace;
+        font-size: 20px;
+        line-height: 1;
+      }
+
+      /* User prompt: always 1 line, truncated */
+      .chat-bubble[data-role="user"] .chat-bubble-text {
+        color: rgba(204, 225, 217, 0.78);
+        font-size: 20px;
+        line-height: 1.35;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* Assistant response: up to 5 lines, expandable */
+      .chat-bubble[data-role="assistant"] .chat-bubble-text {
+        color: rgba(230, 242, 238, 0.88);
+        font-size: 20px;
+        line-height: 1.4;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 5;
+        overflow: hidden;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .chat-bubble[data-role="assistant"].expanded .chat-bubble-text {
+        -webkit-line-clamp: unset;
+        overflow: visible;
+      }
+
+      .chat-bubble-expand {
+        margin-top: 2px;
+        padding: 0;
+        border: none;
+        background: none;
+        color: rgba(126, 202, 184, 0.7);
+        font-size: 16px;
+        line-height: 1;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .chat-bubble-expand:hover {
+        color: rgba(126, 202, 184, 1);
+      }
+
+      /* Legacy hud-chat-toggle — hidden */
+      .hud-chat-toggle { display: none !important; }
+
+      @media (max-width: 700px) {
+        .hud-chat {
+          left: 10px;
+          right: 10px;
+          bottom: 48px;
+          width: auto;
+          max-width: min(408px, calc(100vw - 20px)); /* 340 * 1.2 */
+          max-height: min(360px, calc(100vh - 120px));
+        }
+
+        .panel-switcher {
+          left: 10px;
+          bottom: 10px;
+        }
+      }
+
+      /* Archive Live panel collapse */
+      .menu-panel {
+        transition:
+          transform 200ms ease,
+          opacity 200ms ease;
+      }
+
+      /* Desktop: panel desliza a la derecha → escena se expande */
+      body.archive-collapsed .menu-panel {
+        transform: translateX(calc(100% + 16px));
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      body.archive-collapsed {
+        --stage-right-gutter: 0px;
+      }
+
+      /* Mobile: panel sube → escena ocupa más espacio vertical */
+      @media (max-width: 700px) {
+        body.archive-collapsed {
+          --stage-right-gutter: 0px;
+        }
+      }
+
+      /* Botón "Hide" dentro del panel — mismo estilo pill que meta-toggle */
+      .archive-hide-btn {
+        border: 1px solid rgba(171, 218, 201, 0.34);
+        border-radius: 999px;
+        padding: 4px 9px;
+        background: rgba(9, 24, 22, 0.72);
+        color: #d6eee5;
+        font-family: "VT323", monospace;
+        font-size: 13px;
+        line-height: 1;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        min-height: 36px;
+        display: inline-flex;
+        align-items: center;
+        transition:
+          border-color 120ms ease,
+          transform 120ms ease,
+          background 120ms ease,
+          color 120ms ease;
+      }
+
+      .archive-hide-btn:hover {
+        border-color: rgba(171, 218, 201, 0.72);
+        background: rgba(12, 31, 28, 0.86);
+        color: #f0fff9;
+        transform: translateY(-1px);
+      }
+
+      /* Tab "Show Archive" — Desktop: borde derecho, vertical */
+      .archive-show-tab {
+        position: fixed;
+        z-index: 120;
+        top: 50%;
+        right: 0;
+        transform: translateY(-50%) translateX(100%);
+        border: 1px solid rgba(171, 218, 201, 0.34);
+        border-right: none;
+        border-radius: 10px 0 0 10px;
+        padding: 16px 10px;
+        background: rgba(9, 24, 22, 0.88);
+        color: #d6eee5;
+        font-family: "VT323", monospace;
+        font-size: 15px;
+        line-height: 1;
+        letter-spacing: 0.06em;
+        cursor: pointer;
+        writing-mode: vertical-rl;
+        backdrop-filter: blur(8px);
+        transition:
+          transform 200ms ease,
+          opacity 200ms ease,
+          border-color 120ms ease,
+          background 120ms ease,
+          color 120ms ease;
+        min-width: 44px;
+        min-height: 88px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        opacity: 0;
+      }
+
+      body.archive-collapsed .archive-show-tab {
+        transform: translateY(-50%) translateX(0);
+        pointer-events: auto;
+        opacity: 1;
+      }
+
+      .archive-show-tab:hover {
+        border-color: rgba(171, 218, 201, 0.72);
+        background: rgba(12, 31, 28, 0.94);
+        color: #f0fff9;
+      }
+
+      /* Mobile (≤700px): panel se oculta hacia arriba, tab aparece en borde superior */
+      @media (max-width: 700px) {
+        body.archive-collapsed .menu-panel {
+          transform: translateY(calc(-100% - 16px));
+          opacity: 0;
+          pointer-events: none;
+        }
+
+        .archive-show-tab {
+          top: 0;
+          right: auto;
+          left: 50%;
+          transform: translateX(-50%) translateY(-100%);
+          border: 1px solid rgba(171, 218, 201, 0.34);
+          border-top: none;
+          border-radius: 0 0 10px 10px;
+          padding: 10px 18px;
+          writing-mode: horizontal-tb;
+          min-width: 120px;
+          min-height: 44px;
+          font-size: 14px;
+        }
+
+        body.archive-collapsed .archive-show-tab {
+          transform: translateX(-50%) translateY(0);
+        }
       }
 
       .gateway-category-menu.hidden {
@@ -711,7 +1020,13 @@
       .preview-modal-head strong,
       .preview-modal-tools button,
       .preview-code-head,
-      .asset-action {
+      .asset-action,
+      .archive-hide-btn,
+      .archive-show-tab,
+      .hud-chat-toggle,
+      .panel-switcher-btn,
+      .chat-bubble-name,
+      .chat-bubble-time {
         font-family: var(--font-display) !important;
         letter-spacing: 0.01em;
         text-rendering: geometricPrecision;
@@ -1898,6 +2213,233 @@
         background-clip: padding-box;
       }
 
+      /* ── Mobile Agents View ──────────────────────────────────────── */
+      .mobile-agents {
+        display: none;
+      }
+
+      @media (max-width: 768px) {
+        /* Hide Phaser canvas on mobile */
+        #app {
+          display: none !important;
+        }
+        .hud-title {
+          display: none !important;
+        }
+
+        .mobile-agents {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          position: fixed;
+          top: 12px;
+          left: 12px;
+          right: 12px;
+          bottom: 60px;
+          z-index: 100;
+          overflow-y: auto;
+          scrollbar-width: none;
+          padding-bottom: 8px;
+        }
+        .mobile-agents::-webkit-scrollbar { display: none; }
+        .mobile-agents[aria-hidden="true"] { display: none; }
+
+        .mobile-agent-card {
+          border: 1px solid rgba(171, 218, 201, 0.22);
+          border-radius: 16px;
+          padding: 14px 16px;
+          background: linear-gradient(180deg, rgba(12, 29, 27, 0.82), rgba(8, 21, 19, 0.62));
+          backdrop-filter: blur(10px);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 20px rgba(0, 0, 0, 0.2);
+          display: grid;
+          gap: 8px;
+        }
+
+        .mobile-agent-card.main {
+          border-color: rgba(255, 127, 80, 0.3);
+          background: linear-gradient(180deg, rgba(18, 28, 26, 0.88), rgba(10, 22, 20, 0.72));
+        }
+
+        .mobile-agent-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+
+        .mobile-agent-name {
+          font-family: var(--font-display);
+          font-size: 22px;
+          line-height: 1;
+          color: var(--accent);
+        }
+
+        .mobile-agent-card:not(.main) .mobile-agent-name {
+          color: var(--accent-2);
+        }
+
+        .mobile-agent-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 10px;
+          border-radius: 999px;
+          border: 1px solid rgba(100, 215, 176, 0.28);
+          background: rgba(20, 61, 50, 0.5);
+          font-size: 11px;
+          color: #9df0cf;
+          line-height: 1;
+        }
+
+        .mobile-agent-badge::before {
+          content: '';
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: #64d7b0;
+          box-shadow: 0 0 8px #64d7b0;
+        }
+
+        .mobile-agent-badge.idle::before {
+          background: #cda57a;
+          box-shadow: 0 0 8px #cda57a;
+        }
+
+        .mobile-agent-badge.idle {
+          border-color: rgba(205, 165, 122, 0.28);
+          background: rgba(55, 38, 19, 0.46);
+          color: #ffd27f;
+        }
+
+        .mobile-agent-hp {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .mobile-agent-hp-bar {
+          flex: 1;
+          height: 8px;
+          border-radius: 999px;
+          background: rgba(7, 18, 17, 0.5);
+          overflow: hidden;
+        }
+
+        .mobile-agent-hp-fill {
+          height: 100%;
+          border-radius: 999px;
+          background: linear-gradient(90deg, #64d7b0, #9df0cf);
+          transition: width 300ms ease;
+        }
+
+        .mobile-agent-hp-text {
+          font-family: var(--font-display);
+          font-size: 18px;
+          color: rgba(244, 255, 247, 0.9);
+          min-width: 40px;
+          text-align: right;
+        }
+
+        .mobile-agent-status {
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+          padding: 8px 10px;
+          border-radius: 10px;
+          border: 1px solid rgba(171, 218, 201, 0.12);
+          background: rgba(9, 24, 22, 0.6);
+        }
+
+        .mobile-agent-status-icon {
+          font-size: 16px;
+          line-height: 1.3;
+          flex-shrink: 0;
+        }
+
+        .mobile-agent-status-text {
+          color: rgba(230, 242, 238, 0.88);
+          font-size: 14px;
+          line-height: 1.4;
+          word-break: break-word;
+        }
+
+        .mobile-agent-meta {
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
+        .mobile-agent-meta-item {
+          display: grid;
+          gap: 1px;
+        }
+
+        .mobile-agent-meta-value {
+          font-family: var(--font-display);
+          font-size: 16px;
+          color: rgba(244, 255, 247, 0.88);
+        }
+
+        .mobile-agent-meta-label {
+          font-size: 9px;
+          color: rgba(152, 181, 172, 0.7);
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+        }
+
+        .mobile-agents-empty {
+          text-align: center;
+          padding: 40px 20px;
+          color: rgba(152, 181, 172, 0.6);
+          font-size: 14px;
+        }
+
+        /* Hide archive panel on mobile — it overlaps */
+        .menu-panel {
+          display: none !important;
+        }
+        .archive-show-tab {
+          display: none !important;
+        }
+
+        /* Reposition panel switcher centered at bottom */
+        .panel-switcher {
+          left: 50%;
+          transform: translateX(-50%);
+          bottom: 12px;
+        }
+
+        /* Hide desktop info HUD on mobile — agents cards replace it */
+        .hud-activity {
+          display: none !important;
+        }
+
+        /* Mobile chat: render below agents cards, inside the mobile-agents container */
+        .hud-chat {
+          position: static !important;
+          width: 100% !important;
+          max-width: none !important;
+          max-height: none !important;
+          opacity: 1 !important;
+          transform: none !important;
+          pointer-events: auto !important;
+          display: none;
+        }
+
+        body.mobile-chat-active .hud-chat {
+          display: flex !important;
+        }
+
+        body.mobile-chat-active .hud-chat .hud-chat-messages {
+          max-height: 50vh;
+        }
+
+        /* When chat is active on mobile, keep agents visible above */
+        body.mobile-chat-active .mobile-agents {
+          bottom: 60px;
+        }
+      }
+
       @media (max-width: 700px) {
         :root {
           --stage-left-gutter: 0px;
@@ -2130,7 +2672,17 @@
       <div class="hud-actor-status" id="hud-actor-status"></div>
       <div class="hud-activity-items" id="hud-activity-items"></div>
     </div>
-    <button class="hud-activity-toggle" id="toggle-info-panel" type="button">Hide Info</button>
+    <button class="hud-activity-toggle" id="toggle-info-panel" type="button" hidden>Hide Info</button>
+    <!-- Live Chat panel -->
+    <div class="hud-chat" id="hud-chat" aria-hidden="true">
+      <div class="hud-chat-messages" id="hud-chat-messages"></div>
+    </div>
+    <button class="hud-chat-toggle" id="toggle-chat-panel" type="button" hidden>Live Chat</button>
+    <!-- Panel switcher -->
+    <div class="panel-switcher" id="panel-switcher" role="group" aria-label="Panel selector">
+      <button class="panel-switcher-btn" id="switcher-info" type="button" data-active="false">Info</button>
+      <button class="panel-switcher-btn" id="switcher-chat" type="button" data-active="false">Chat</button>
+    </div>
     <div class="gateway-category-menu hidden" id="gateway-category-menu" aria-hidden="true"></div>
     <aside class="menu-panel" aria-label="Quick resource menu">
       <div class="menu-panel-head">
@@ -2144,7 +2696,10 @@
             <button class="meta-toggle" id="toggle-locale" type="button">EN / 中</button>
             <button class="meta-toggle" id="toggle-debug" type="button">Debug</button>
           </div>
-          <button class="meta-toggle" id="toggle-actor-skin" type="button">Claw</button>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="meta-toggle" id="toggle-actor-skin" type="button">Claw</button>
+            <button class="archive-hide-btn" id="archive-hide-btn" type="button">Hide</button>
+          </div>
         </div>
       </div>
       <div class="resource-menu" id="resource-menu"></div>
@@ -2203,6 +2758,442 @@
         <div class="preview-modal-body" id="preview-modal-body"></div>
       </div>
     </div>
+    <button class="archive-show-tab" id="archive-show-tab" type="button">Show Archive</button>
+    <!-- Mobile agents view — replaces Phaser canvas on small screens -->
+    <div id="mobile-agents" class="mobile-agents" aria-hidden="true"></div>
     <script type="module" src="/src/main.ts"></script>
+    <script>
+    /* ── Panel Switcher + Live Chat ────────────────────────────────── */
+    (function () {
+      var CHAT_KEY = 'clawlibrary-chat-visible';
+      var INFO_KEY = 'clawlibrary-info-panel-visible-v1';
+      var PANEL_KEY = 'clawlibrary-active-panel';
+      var POLL_MS = 2500;
+
+      var chatPanel    = document.getElementById('hud-chat');
+      var chatMessages = document.getElementById('hud-chat-messages');
+      var switcherInfo = document.getElementById('switcher-info');
+      var switcherChat = document.getElementById('switcher-chat');
+      var infoToggle   = document.getElementById('toggle-info-panel');
+
+      var activePanel = 'none';
+      var lastMsgCount = 0;
+      var expandedSet = new Set();
+      var lastMessages = [];
+
+      function fmtTime(iso) {
+        if (!iso) return '';
+        try {
+          var d = new Date(iso);
+          return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+        } catch(e) { return ''; }
+      }
+      function esc(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      }
+
+      function buildBubbleHTML(msg, i) {
+        var isUser = msg.role === 'user';
+        var isExpanded = expandedSet.has(i);
+        var expandBtn = !isUser
+          ? '<button class="chat-bubble-expand" data-idx="' + i + '">' + (isExpanded ? '▲ less' : '▼ more') + '</button>'
+          : '';
+        return '<div class="chat-bubble' + (isExpanded ? ' expanded' : '') + '" data-role="' + msg.role + '" data-idx="' + i + '">'
+          + '<div class="chat-bubble-meta">'
+          + '<span class="chat-bubble-name">' + esc(msg.senderName) + '</span>'
+          + '<span class="chat-bubble-time">' + fmtTime(msg.timestamp) + '</span>'
+          + '</div>'
+          + '<div class="chat-bubble-text">' + esc(msg.text) + '</div>'
+          + expandBtn + '</div>';
+      }
+
+      function attachExpandListeners(container) {
+        container.querySelectorAll('.chat-bubble-expand').forEach(function(btn) {
+          btn.addEventListener('click', function(e) {
+            var idx = parseInt(e.currentTarget.getAttribute('data-idx'), 10);
+            if (expandedSet.has(idx)) expandedSet.delete(idx); else expandedSet.add(idx);
+            renderMessages(lastMessages);
+          });
+        });
+      }
+
+      function fullRenderMessages(messages) {
+        chatMessages.innerHTML = messages.map(function(msg, i) {
+          return buildBubbleHTML(msg, i);
+        }).join('');
+        attachExpandListeners(chatMessages);
+      }
+
+      // Build a stable fingerprint for a message array to detect real changes
+      function messagesFingerprint(msgs) {
+        return msgs.map(function(m) { return m.role + ':' + (m.text || '').length + ':' + (m.timestamp || ''); }).join('|');
+      }
+      var lastFingerprint = '';
+
+      function renderMessages(messages) {
+        if (!chatMessages) return;
+        var prevMessages = lastMessages;
+        lastMessages = messages;
+
+        // Fast check: if nothing changed at all, skip entirely (prevents any layout thrash)
+        var fp = messagesFingerprint(messages);
+        if (fp === lastFingerprint && messages.length === lastMsgCount) return;
+
+        var atBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 40;
+
+        if (messages.length < lastMsgCount) {
+          // History cleared — full re-render
+          lastFingerprint = fp;
+          fullRenderMessages(messages);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+          lastMsgCount = messages.length;
+          return;
+        }
+
+        if (messages.length === lastMsgCount) {
+          lastFingerprint = fp;
+          // Same count — check if last message changed (streaming update)
+          if (messages.length > 0) {
+            var lastIdx = messages.length - 1;
+            var prevText = prevMessages.length > 0 ? prevMessages[lastIdx].text : null;
+            var newText = messages[lastIdx].text;
+            if (prevText !== newText) {
+              // Update only the last bubble's text in-place (no full re-render)
+              var lastBubble = chatMessages.querySelector('.chat-bubble[data-idx="' + lastIdx + '"]');
+              if (lastBubble) {
+                var textEl = lastBubble.querySelector('.chat-bubble-text');
+                if (textEl) {
+                  textEl.textContent = newText; // textContent avoids layout thrash from innerHTML
+                }
+              }
+              // Only scroll if user was already at bottom
+              if (atBottom) chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+          }
+          lastMsgCount = messages.length;
+          return;
+        }
+
+        // messages.length > lastMsgCount — append new messages only
+        lastFingerprint = fp;
+        var newMessages = messages.slice(lastMsgCount);
+        var frag = document.createDocumentFragment();
+        var tmp = document.createElement('div');
+        tmp.innerHTML = newMessages.map(function(msg, j) {
+          return buildBubbleHTML(msg, lastMsgCount + j);
+        }).join('');
+        while (tmp.firstChild) frag.appendChild(tmp.firstChild);
+        chatMessages.appendChild(frag);
+        attachExpandListeners(chatMessages);
+        if (atBottom || lastMsgCount === 0) chatMessages.scrollTop = chatMessages.scrollHeight;
+        lastMsgCount = messages.length;
+      }
+
+      async function pollChat() {
+        if (activePanel !== 'chat') return;
+        try {
+          var res = await fetch('/api/openclaw/chat', { cache: 'no-store' });
+          if (!res.ok) return;
+          var data = await res.json();
+          if (data.ok && Array.isArray(data.messages)) renderMessages(data.messages);
+        } catch(e) {}
+      }
+
+      function isMobileView() {
+        return window.matchMedia('(max-width: 768px)').matches;
+      }
+
+      function applyPanel(panel, save) {
+        activePanel = panel;
+        var showChat = panel === 'chat';
+        var showInfo = panel === 'info';
+        var mobile = isMobileView();
+
+        document.body.classList.toggle('chat-hidden', !showChat);
+        if (chatPanel) chatPanel.setAttribute('aria-hidden', showChat ? 'false' : 'true');
+        document.body.classList.toggle('info-collapsed', !showInfo);
+
+        // Mobile: move chat panel into mobile-agents container when active
+        var mobileContainer = document.getElementById('mobile-agents');
+        if (mobile && showChat && mobileContainer && chatPanel) {
+          document.body.classList.add('mobile-chat-active');
+          // Move chat panel to end of mobile-agents if not already there
+          if (chatPanel.parentNode !== mobileContainer) {
+            mobileContainer.appendChild(chatPanel);
+          }
+          // Scroll chat to bottom
+          if (chatMessages) {
+            setTimeout(function() { chatMessages.scrollTop = chatMessages.scrollHeight; }, 100);
+          }
+        } else {
+          document.body.classList.remove('mobile-chat-active');
+          // Move chat panel back to body if it was moved
+          if (mobile && chatPanel && chatPanel.parentNode !== document.body) {
+            // Insert before the panel-switcher
+            var switcher = document.getElementById('panel-switcher');
+            if (switcher) {
+              document.body.insertBefore(chatPanel, switcher);
+            } else {
+              document.body.appendChild(chatPanel);
+            }
+          }
+        }
+
+        if (switcherInfo) {
+          // On mobile, hide Info button (agents cards replace it)
+          if (mobile) {
+            switcherInfo.style.display = 'none';
+          } else {
+            switcherInfo.style.display = '';
+          }
+          switcherInfo.setAttribute('data-active', showInfo ? 'true' : 'false');
+        }
+        if (switcherChat) switcherChat.setAttribute('data-active', showChat ? 'true' : 'false');
+
+        if (infoToggle) {
+          infoToggle.textContent = showInfo ? 'Hide Info' : 'Show Info';
+          infoToggle.setAttribute('aria-pressed', showInfo ? 'true' : 'false');
+        }
+
+        if (save) {
+          try {
+            localStorage.setItem(PANEL_KEY, panel);
+            localStorage.setItem(CHAT_KEY, showChat ? '1' : '0');
+            localStorage.setItem(INFO_KEY, showInfo ? '1' : '0');
+          } catch(e) {}
+        }
+        if (showChat) pollChat();
+      }
+
+      if (switcherInfo) {
+        switcherInfo.addEventListener('click', function() {
+          applyPanel(activePanel === 'info' ? 'none' : 'info', true);
+        });
+      }
+      if (switcherChat) {
+        switcherChat.addEventListener('click', function() {
+          applyPanel(activePanel === 'chat' ? 'none' : 'chat', true);
+        });
+      }
+
+      (function restore() {
+        var saved = 'none';
+        try { saved = localStorage.getItem(PANEL_KEY) || 'none'; } catch(e) {}
+        if (saved === 'none') {
+          try {
+            if (localStorage.getItem(CHAT_KEY) === '1') saved = 'chat';
+            else if (localStorage.getItem(INFO_KEY) === '1') saved = 'info';
+          } catch(e) {}
+        }
+        applyPanel(saved, false);
+      })();
+
+      setInterval(pollChat, POLL_MS);
+    })();
+    </script>
+    <script>
+    /* ── Mobile Agents View ────────────────────────────────────────── */
+    (function () {
+      var container = document.getElementById('mobile-agents');
+      var POLL_MS = 3000;
+      var isMobile = false;
+
+      function checkMobile() {
+        var wasMobile = isMobile;
+        isMobile = window.matchMedia('(max-width: 768px)').matches;
+        if (isMobile && !wasMobile) {
+          container.setAttribute('aria-hidden', 'false');
+          pollAgents();
+        } else if (!isMobile && wasMobile) {
+          container.setAttribute('aria-hidden', 'true');
+        }
+      }
+
+      function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+      function formatRuntime(ms) {
+        if (!ms || ms < 0) return '—';
+        var s = Math.floor(ms / 1000);
+        if (s < 60) return s + 's';
+        var m = Math.floor(s / 60);
+        if (m < 60) return m + 'm';
+        var h = Math.floor(m / 60);
+        return h + 'h ' + (m % 60) + 'm';
+      }
+
+      async function pollAgents() {
+        if (!isMobile) return;
+        try {
+          // Fetch subagents from runs.json via snapshot
+          var [snapshotRes, focusRes, procRes] = await Promise.all([
+            fetch('/api/openclaw/snapshot?compact=true', { cache: 'no-store' }),
+            fetch('/api/openclaw/agent-focus', { cache: 'no-store' }),
+            fetch('/api/openclaw/processes', { cache: 'no-store' })
+          ]);
+
+          var snapshot = snapshotRes.ok ? await snapshotRes.json() : {};
+          var focusData = focusRes.ok ? await focusRes.json() : { focuses: [] };
+          var procData = procRes.ok ? await procRes.json() : { processes: [] };
+
+          var focuses = {};
+          if (focusData.ok && focusData.focuses) {
+            focusData.focuses.forEach(function(f) { focuses[f.runId] = f; });
+          }
+
+          var cards = [];
+
+          // Main agent card
+          var mainCtx = snapshot.mainActorContext || {};
+          // remaining = fraction of context left (0.0 = full, 1.0 = empty)
+          var remaining = mainCtx.remaining != null ? mainCtx.remaining : null;
+          var tokens = mainCtx.tokens || 0;
+          var maxTokens = mainCtx.maxTokens || 200000;
+          var usedPct = remaining != null ? Math.round((1 - remaining) * 100) : null;
+          var remainPct = remaining != null ? Math.round(remaining * 100) : null;
+          var mainFocus = snapshot.focus || {};
+          var mainStatus = mainFocus.detail || mainCtx.detail || 'Ready';
+
+          // HP bar color: green > 40%, yellow 20-40%, red < 20%
+          var hpColor = remainPct > 40 ? '#64d7b0,#9df0cf' : remainPct > 20 ? '#ffbe6a,#ffd27f' : '#ff7b7b,#ffb1b1';
+
+          cards.push(
+            '<div class="mobile-agent-card main">'
+            + '<div class="mobile-agent-header">'
+            + '<span class="mobile-agent-name">🦞 ClawBot</span>'
+            + '<span class="mobile-agent-badge">Active</span>'
+            + '</div>'
+            + (remainPct != null ? (
+              '<div class="mobile-agent-hp">'
+              + '<div class="mobile-agent-hp-bar"><div class="mobile-agent-hp-fill" style="width:' + remainPct + '%;background:linear-gradient(90deg,' + hpColor + ')"></div></div>'
+              + '<span class="mobile-agent-hp-text">' + remainPct + '%</span>'
+              + '</div>'
+              + '<div class="mobile-agent-meta">'
+              + '<div class="mobile-agent-meta-item"><span class="mobile-agent-meta-value">' + Math.round(tokens/1000) + 'k</span><span class="mobile-agent-meta-label">Tokens used</span></div>'
+              + '<div class="mobile-agent-meta-item"><span class="mobile-agent-meta-value">' + Math.round(maxTokens/1000) + 'k</span><span class="mobile-agent-meta-label">Max</span></div>'
+              + '<div class="mobile-agent-meta-item"><span class="mobile-agent-meta-value">' + usedPct + '%</span><span class="mobile-agent-meta-label">Used</span></div>'
+              + '</div>'
+            ) : '')
+            + '<div class="mobile-agent-status">'
+            + '<span class="mobile-agent-status-icon">💭</span>'
+            + '<span class="mobile-agent-status-text">' + esc(mainStatus) + '</span>'
+            + '</div>'
+            + '</div>'
+          );
+
+          // Active subagents
+          var agents = (snapshot.activeAgents || []).filter(function(a) { return !a.endedAt; });
+          agents.forEach(function(agent) {
+            var focus = focuses[agent.id] || focuses[agent.label] || {};
+            var status = focus.detail || 'Working...';
+            var runtime = agent.startedAt ? Date.now() - new Date(agent.startedAt).getTime() : 0;
+
+            cards.push(
+              '<div class="mobile-agent-card">'
+              + '<div class="mobile-agent-header">'
+              + '<span class="mobile-agent-name">🐹 ' + esc(agent.label || agent.id.slice(0, 8)) + '</span>'
+              + '<span class="mobile-agent-badge">Running</span>'
+              + '</div>'
+              + '<div class="mobile-agent-status">'
+              + '<span class="mobile-agent-status-icon">💭</span>'
+              + '<span class="mobile-agent-status-text">' + esc(status) + '</span>'
+              + '</div>'
+              + '<div class="mobile-agent-meta">'
+              + '<div class="mobile-agent-meta-item"><span class="mobile-agent-meta-value">' + formatRuntime(runtime) + '</span><span class="mobile-agent-meta-label">Runtime</span></div>'
+              + (agent.model ? '<div class="mobile-agent-meta-item"><span class="mobile-agent-meta-value">' + esc(agent.model.split('/').pop()) + '</span><span class="mobile-agent-meta-label">Model</span></div>' : '')
+              + '</div>'
+              + '</div>'
+            );
+          });
+
+          // Active exec-processes
+          var procs = (procData.ok && procData.processes) ? procData.processes : [];
+          procs.forEach(function(proc) {
+            var focus = focuses[proc.id] || {};
+            var status = focus.detail || proc.label || 'Running...';
+            var runtime = proc.startedAt ? Date.now() - new Date(proc.startedAt).getTime() : 0;
+
+            cards.push(
+              '<div class="mobile-agent-card">'
+              + '<div class="mobile-agent-header">'
+              + '<span class="mobile-agent-name">⚙ ' + esc(proc.label || proc.id) + '</span>'
+              + '<span class="mobile-agent-badge">Running</span>'
+              + '</div>'
+              + '<div class="mobile-agent-status">'
+              + '<span class="mobile-agent-status-icon">💭</span>'
+              + '<span class="mobile-agent-status-text">' + esc(status) + '</span>'
+              + '</div>'
+              + '<div class="mobile-agent-meta">'
+              + '<div class="mobile-agent-meta-item"><span class="mobile-agent-meta-value">' + formatRuntime(runtime) + '</span><span class="mobile-agent-meta-label">Runtime</span></div>'
+              + '</div>'
+              + '</div>'
+            );
+          });
+
+          if (cards.length === 1 && agents.length === 0 && procs.length === 0) {
+            cards.push('<div class="mobile-agents-empty">No sub-agents running</div>');
+          }
+
+          container.innerHTML = cards.join('');
+        } catch(e) {
+          // best-effort
+        }
+      }
+
+      checkMobile();
+      window.addEventListener('resize', checkMobile);
+      setInterval(function() { if (isMobile) pollAgents(); }, POLL_MS);
+    })();
+    </script>
+    <script>
+      (function () {
+        var STORAGE_KEY = 'clawlibrary-archive-visible';
+        var hideBtn = document.getElementById('archive-hide-btn');
+        var showTab = document.getElementById('archive-show-tab');
+
+        function applyState(collapsed, animate) {
+          if (!animate) {
+            // Disable transitions momentarily for instant restore on load
+            var panel = document.querySelector('.menu-panel');
+            var tab = document.getElementById('archive-show-tab');
+            if (panel) panel.style.transition = 'none';
+            if (tab) tab.style.transition = 'none';
+          }
+          if (collapsed) {
+            document.body.classList.add('archive-collapsed');
+          } else {
+            document.body.classList.remove('archive-collapsed');
+          }
+          if (!animate) {
+            void document.body.offsetHeight;
+            var panel = document.querySelector('.menu-panel');
+            var tab = document.getElementById('archive-show-tab');
+            if (panel) panel.style.transition = '';
+            if (tab) tab.style.transition = '';
+          }
+          // Notify Phaser of canvas resize after CSS transition completes
+          setTimeout(function() { window.dispatchEvent(new Event('resize')); }, animate ? 320 : 0);
+
+          try {
+            localStorage.setItem(STORAGE_KEY, collapsed ? '0' : '1');
+          } catch (e) {}
+        }
+
+        // Restore saved preference immediately (no animation on load)
+        try {
+          var saved = localStorage.getItem(STORAGE_KEY);
+          if (saved === '0') {
+            applyState(true, false);
+          }
+        } catch (e) {}
+
+        hideBtn.addEventListener('click', function () {
+          applyState(true, true);
+        });
+
+        showTab.addEventListener('click', function () {
+          applyState(false, true);
+        });
+      })();
+    </script>
   </body>
 </html>
