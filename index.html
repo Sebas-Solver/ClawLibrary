@@ -2781,6 +2781,9 @@
       var expandedSet = new Set();
       var lastMessages = [];
 
+      // Set up expand button delegation once (survives re-renders)
+      if (chatMessages) initExpandDelegation(chatMessages);
+
       function fmtTime(iso) {
         if (!iso) return '';
         try {
@@ -2808,12 +2811,23 @@
       }
 
       function attachExpandListeners(container) {
-        container.querySelectorAll('.chat-bubble-expand').forEach(function(btn) {
-          btn.addEventListener('click', function(e) {
-            var idx = parseInt(e.currentTarget.getAttribute('data-idx'), 10);
-            if (expandedSet.has(idx)) expandedSet.delete(idx); else expandedSet.add(idx);
-            renderMessages(lastMessages);
-          });
+        // No-op: using event delegation instead (set up once on container init)
+        // This prevents losing listeners on re-render
+      }
+
+      function initExpandDelegation(container) {
+        container.addEventListener('click', function(e) {
+          var btn = e.target.closest('.chat-bubble-expand');
+          if (!btn) return;
+          var idx = parseInt(btn.getAttribute('data-idx'), 10);
+          if (expandedSet.has(idx)) expandedSet.delete(idx); else expandedSet.add(idx);
+          // Update bubble in-place without full re-render
+          var bubble = container.querySelector('.chat-bubble[data-idx="' + idx + '"]');
+          if (bubble) {
+            var isExp = expandedSet.has(idx);
+            bubble.classList.toggle('expanded', isExp);
+            btn.textContent = isExp ? '▲ less' : '▼ more';
+          }
         });
       }
 
