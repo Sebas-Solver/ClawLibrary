@@ -2781,6 +2781,9 @@
       var expandedSet = new Set();
       var lastMessages = [];
 
+      // Set up expand button delegation once (survives re-renders)
+      if (chatMessages) initExpandDelegation(chatMessages);
+
       function fmtTime(iso) {
         if (!iso) return '';
         try {
@@ -2808,12 +2811,23 @@
       }
 
       function attachExpandListeners(container) {
-        container.querySelectorAll('.chat-bubble-expand').forEach(function(btn) {
-          btn.addEventListener('click', function(e) {
-            var idx = parseInt(e.currentTarget.getAttribute('data-idx'), 10);
-            if (expandedSet.has(idx)) expandedSet.delete(idx); else expandedSet.add(idx);
-            renderMessages(lastMessages);
-          });
+        // No-op: using event delegation instead (set up once on container init)
+        // This prevents losing listeners on re-render
+      }
+
+      function initExpandDelegation(container) {
+        container.addEventListener('click', function(e) {
+          var btn = e.target.closest('.chat-bubble-expand');
+          if (!btn) return;
+          var idx = parseInt(btn.getAttribute('data-idx'), 10);
+          if (expandedSet.has(idx)) expandedSet.delete(idx); else expandedSet.add(idx);
+          // Update bubble in-place without full re-render
+          var bubble = container.querySelector('.chat-bubble[data-idx="' + idx + '"]');
+          if (bubble) {
+            var isExp = expandedSet.has(idx);
+            bubble.classList.toggle('expanded', isExp);
+            btn.textContent = isExp ? '▲ less' : '▼ more';
+          }
         });
       }
 
@@ -2839,7 +2853,7 @@
         var fp = messagesFingerprint(messages);
         if (fp === lastFingerprint && messages.length === lastMsgCount) return;
 
-        var atBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 40;
+        var atBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 100;
 
         if (messages.length < lastMsgCount) {
           // History cleared — full re-render
@@ -2885,6 +2899,15 @@
         while (tmp.firstChild) frag.appendChild(tmp.firstChild);
         chatMessages.appendChild(frag);
         attachExpandListeners(chatMessages);
+        // Trim to max 100 messages in DOM to avoid layout thrash on large history
+        var MAX_MESSAGES = 100;
+        while (chatMessages.children.length > MAX_MESSAGES) {
+          chatMessages.removeChild(chatMessages.firstChild);
+        }
+        // Adjust lastMsgCount so we don't re-append trimmed messages
+        if (messages.length > MAX_MESSAGES) {
+          lastMsgCount = messages.length; // still track real count
+        }
         if (atBottom || lastMsgCount === 0) chatMessages.scrollTop = chatMessages.scrollHeight;
         lastMsgCount = messages.length;
       }
@@ -2914,6 +2937,8 @@
         document.body.classList.toggle('info-collapsed', !showInfo);
 
         // Mobile: move chat panel into mobile-agents container when active
+        // Save scrollTop before any DOM move to prevent layout-jump
+        var savedScrollTop = chatMessages ? chatMessages.scrollTop : 0;
         var mobileContainer = document.getElementById('mobile-agents');
         if (mobile && showChat && mobileContainer && chatPanel) {
           document.body.classList.add('mobile-chat-active');
@@ -2921,9 +2946,9 @@
           if (chatPanel.parentNode !== mobileContainer) {
             mobileContainer.appendChild(chatPanel);
           }
-          // Scroll chat to bottom
+          // Restore scroll position after DOM move (setTimeout 0 lets layout settle)
           if (chatMessages) {
-            setTimeout(function() { chatMessages.scrollTop = chatMessages.scrollHeight; }, 100);
+            setTimeout(function() { chatMessages.scrollTop = savedScrollTop; }, 0);
           }
         } else {
           document.body.classList.remove('mobile-chat-active');
@@ -2935,6 +2960,10 @@
               document.body.insertBefore(chatPanel, switcher);
             } else {
               document.body.appendChild(chatPanel);
+            }
+            // Restore scroll position after DOM move
+            if (chatMessages) {
+              setTimeout(function() { chatMessages.scrollTop = savedScrollTop; }, 0);
             }
           }
         }
