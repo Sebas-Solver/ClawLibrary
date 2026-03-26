@@ -2839,7 +2839,7 @@
         var fp = messagesFingerprint(messages);
         if (fp === lastFingerprint && messages.length === lastMsgCount) return;
 
-        var atBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 40;
+        var atBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 100;
 
         if (messages.length < lastMsgCount) {
           // History cleared — full re-render
@@ -2885,6 +2885,15 @@
         while (tmp.firstChild) frag.appendChild(tmp.firstChild);
         chatMessages.appendChild(frag);
         attachExpandListeners(chatMessages);
+        // Trim to max 100 messages in DOM to avoid layout thrash on large history
+        var MAX_MESSAGES = 100;
+        while (chatMessages.children.length > MAX_MESSAGES) {
+          chatMessages.removeChild(chatMessages.firstChild);
+        }
+        // Adjust lastMsgCount so we don't re-append trimmed messages
+        if (messages.length > MAX_MESSAGES) {
+          lastMsgCount = messages.length; // still track real count
+        }
         if (atBottom || lastMsgCount === 0) chatMessages.scrollTop = chatMessages.scrollHeight;
         lastMsgCount = messages.length;
       }
@@ -2914,6 +2923,8 @@
         document.body.classList.toggle('info-collapsed', !showInfo);
 
         // Mobile: move chat panel into mobile-agents container when active
+        // Save scrollTop before any DOM move to prevent layout-jump
+        var savedScrollTop = chatMessages ? chatMessages.scrollTop : 0;
         var mobileContainer = document.getElementById('mobile-agents');
         if (mobile && showChat && mobileContainer && chatPanel) {
           document.body.classList.add('mobile-chat-active');
@@ -2921,9 +2932,9 @@
           if (chatPanel.parentNode !== mobileContainer) {
             mobileContainer.appendChild(chatPanel);
           }
-          // Scroll chat to bottom
+          // Restore scroll position after DOM move (setTimeout 0 lets layout settle)
           if (chatMessages) {
-            setTimeout(function() { chatMessages.scrollTop = chatMessages.scrollHeight; }, 100);
+            setTimeout(function() { chatMessages.scrollTop = savedScrollTop; }, 0);
           }
         } else {
           document.body.classList.remove('mobile-chat-active');
@@ -2935,6 +2946,10 @@
               document.body.insertBefore(chatPanel, switcher);
             } else {
               document.body.appendChild(chatPanel);
+            }
+            // Restore scroll position after DOM move
+            if (chatMessages) {
+              setTimeout(function() { chatMessages.scrollTop = savedScrollTop; }, 0);
             }
           }
         }
