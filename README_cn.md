@@ -17,9 +17,13 @@
 - 用更友好的 2D 像素游戏界面呈现整个工作流
 - 美术资源可以替换，逻辑层和视觉层可以分离演进
 
+
 ## 它在做什么
 
 龙虾图书馆 / ClawLibrary 会把 OpenClaw 相关资源映射到不同房间，例如：
+
+![龙虾图书馆预览动图](./public/ClawLibrary_preview-6s.gif)
+
 
 - 文档归档
 - 图像工坊
@@ -37,8 +41,6 @@
 
 1. 现在已经有哪些资产？
 2. OpenClaw 正在对这些资产做什么？
-
-![龙虾图书馆预览动图](./public/ClawLibrary_preview-6s.gif)
 
 ## 核心功能
 
@@ -79,6 +81,19 @@ npm run dev
 
 - 本机访问：`http://127.0.0.1:5173/`
 - 如果启用了局域网监听：`http://<你的局域网IP>:5173/`
+
+最简单的局域网启动方式：
+
+```bash
+CLAWLIBRARY_SERVER_HOST=0.0.0.0 npm run dev
+```
+
+只有这种非本机监听模式需要密码：
+
+- 本机模式 `npm run dev` 监听 `127.0.0.1` 时不需要密码
+- 局域网模式监听 `0.0.0.0` 或其他非本机地址时需要密码
+- 如果没有预先设置 `auth.password` / `CLAWLIBRARY_ACCESS_PASSWORD`，启动时会提示你为当前进程输入一次密码
+- 如果是非交互式启动，请提前配置 `auth.password` 或 `CLAWLIBRARY_ACCESS_PASSWORD`
 
 如果你的 OpenClaw 不在默认路径，优先推荐直接修改：
 
@@ -131,8 +146,10 @@ npm run qa:visual
 当前配置项包括：
 
 - `debug` — 是否显示房间锚点、路径圆圈等调试可视化
-- `host` — `127.0.0.1` 表示仅本机访问，`0.0.0.0` 表示允许局域网访问
+- `host` — `127.0.0.1` 表示仅本机访问，`0.0.0.0` 或局域网 IP 表示允许共享访问
 - `port` — 开发服务端口
+- `auth.password` — 只要 `host` 不是本机地址，就必须配置访问密码
+- `auth.sessionTtlHours` — 密码登录后的会话有效时长
 - `locale` — `en` 或 `zh`
 - `defaultActorVariant` — 默认角色外观
 
@@ -147,6 +164,10 @@ npm run qa:visual
   "server": {
     "host": "127.0.0.1",
     "port": 5173
+  },
+  "auth": {
+    "password": "",
+    "sessionTtlHours": 12
   },
   "ui": {
     "defaultLocale": "en",
@@ -169,6 +190,19 @@ npm run qa:visual
 
 - `.env.example` — 用于展示可选环境变量覆盖
 - `scripts/clawlibrary-config.mjs` — 统一读取配置文件与环境变量
+
+可选环境变量覆盖：
+
+- `CLAWLIBRARY_SERVER_HOST`
+- `CLAWLIBRARY_SERVER_PORT`
+- `CLAWLIBRARY_ACCESS_PASSWORD`
+- `CLAWLIBRARY_SESSION_TTL_HOURS`
+
+安全说明：
+
+- 仓库自带配置现在默认监听 `127.0.0.1`。
+- 如果你把 ClawLibrary 绑定到 `0.0.0.0` 或其他非本机地址，ClawLibrary 会优先使用 `auth.password` / `CLAWLIBRARY_ACCESS_PASSWORD`，否则会在启动时提示你为当前进程输入一次访问密码。
+- 如果是非交互式启动，请提前配置 `auth.password` 或 `CLAWLIBRARY_ACCESS_PASSWORD`，因为这时不会有终端密码提示。
 
 ## OpenClaw 路径探测
 

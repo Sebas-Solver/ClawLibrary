@@ -19,7 +19,12 @@ const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
   await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(1500);
+  await page.waitForFunction(() => {
+    const debug = window.__clawlibraryDebug;
+    const scene = debug?.getScene?.();
+    return Boolean(scene?.lobster && typeof scene.lobster.x === 'number' && typeof scene.lobster.y === 'number');
+  }, { timeout: 15000 });
+  await page.waitForTimeout(500);
 
   const report = await page.evaluate(async ({ exploratoryPoints }) => {
     const debug = window.__clawlibraryDebug;

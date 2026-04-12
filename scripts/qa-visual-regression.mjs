@@ -335,13 +335,18 @@ async function captureScenario(browser, scenario) {
   const outputPath = path.join(currentDir, `${scenario.id}.png`);
 
   try {
-    await page.goto(scenario.targetUrl ?? targetUrl, { waitUntil: 'networkidle', timeout: 25000 });
+    await page.goto(scenario.targetUrl ?? targetUrl, { waitUntil: 'domcontentloaded', timeout: 25000 });
     await page.waitForFunction(
-      () => Boolean(document.querySelector('canvas'))
-        && Boolean(document.querySelector('#resource-menu button[data-resource-id="document"]')),
+      () => {
+        const debug = window.__clawlibraryDebug;
+        const scene = debug?.getScene?.();
+        return Boolean(document.querySelector('canvas'))
+          && Boolean(document.querySelector('#resource-menu button[data-resource-id="document"]'))
+          && Boolean(scene?.lobster && typeof scene.lobster.x === 'number' && typeof scene.lobster.y === 'number');
+      },
       { timeout: 10000 }
     );
-    await page.waitForTimeout(450);
+    await page.waitForTimeout(650);
 
     if (scenario.tapScenePoint) {
       const point = await sceneToClientPoint(page, scenario.tapScenePoint);
@@ -397,7 +402,14 @@ async function captureScenario(browser, scenario) {
       await page.waitForTimeout(scenario.waitAfterActionMs ?? 700);
     }
 
-    await page.screenshot({ path: outputPath, fullPage: true, type: 'png' });
+    await page.screenshot({
+      path: outputPath,
+      fullPage: true,
+      type: 'png',
+      animations: 'disabled',
+      caret: 'hide',
+      timeout: 90000
+    });
   } finally {
     await context.close();
   }
@@ -503,10 +515,15 @@ async function main() {
   await assertTargetReachable();
 
   const executablePath = process.env.CHROME_PATH;
-  const browser = await chromium.launch({
+  const browserLaunchOptions = {
     headless: process.env.HEADLESS === '0' ? false : true,
+    args: [
+      '--enable-unsafe-swiftshader',
+      '--use-angle=swiftshader-webgl',
+      '--disable-gpu'
+    ],
     ...(executablePath ? { executablePath } : {})
-  });
+  };
 
   const report = {
     targetUrl,
@@ -518,14 +535,16 @@ async function main() {
   };
 
   try {
-    try {
-      for (const scenario of scenarios) {
+    for (const scenario of scenarios) {
+      console.log(`Capturing ${scenario.id}...`);
+      const browser = await chromium.launch(browserLaunchOptions);
+      try {
         await captureScenario(browser, scenario);
+      } finally {
+        await browser.close();
+      }
         const result = await compareScenario(scenario.id);
         report.scenarios.push(result);
-      }
-    } finally {
-      await browser.close();
     }
 
     report.pass = report.scenarios.every((item) => item.pass);

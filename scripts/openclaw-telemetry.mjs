@@ -8,6 +8,7 @@ const WORKSPACE_ROOT = clawlibraryConfig.openclaw.workspace;
 const ACTIVE_WINDOW_MS = 15 * 60 * 1000;
 const CACHE_ROOT = path.join(OPENCLAW_ROOT, 'cache');
 const WORKSPACE_TREE_CACHE_PATH = path.join(CACHE_ROOT, 'clawlibrary-workspace-tree.json');
+let canonicalAllowedRootsPromise = null;
 
 const RESOURCE_META = {
   document: { label: 'Documents Archive', source: 'workspace/**/* heuristic document scan' },
@@ -197,6 +198,56 @@ export function resolveOpenClawPath(pathValue) {
   }
 
   return path.join(WORKSPACE_ROOT, raw);
+}
+
+async function canonicalizePath(targetPath, { allowMissing = false } = {}) {
+  const resolved = path.resolve(String(targetPath || ''));
+  if (!resolved) {
+    return null;
+  }
+
+  try {
+    return await fs.realpath(resolved);
+  } catch {
+    if (!allowMissing) {
+      return null;
+    }
+
+    const parent = path.dirname(resolved);
+    if (!parent || parent === resolved) {
+      return null;
+    }
+    const canonicalParent = await canonicalizePath(parent);
+    return canonicalParent ? path.join(canonicalParent, path.basename(resolved)) : null;
+  }
+}
+
+async function canonicalAllowedRoots() {
+  if (!canonicalAllowedRootsPromise) {
+    canonicalAllowedRootsPromise = Promise.all([
+      canonicalizePath(WORKSPACE_ROOT, { allowMissing: true }),
+      canonicalizePath(OPENCLAW_ROOT, { allowMissing: true })
+    ]).then((roots) => roots
+      .filter(Boolean)
+      .map((entry) => String(entry).replaceAll(path.sep, '/')));
+  }
+  return canonicalAllowedRootsPromise;
+}
+
+export async function resolveSafeOpenClawPath(pathValue, { allowMissing = false } = {}) {
+  const candidate = resolveOpenClawPath(pathValue);
+  if (!candidate) {
+    return null;
+  }
+
+  const canonicalTarget = await canonicalizePath(candidate, { allowMissing });
+  if (!canonicalTarget) {
+    return null;
+  }
+
+  const normalizedTarget = canonicalTarget.replaceAll(path.sep, '/');
+  const roots = await canonicalAllowedRoots();
+  return roots.some((root) => pathIsWithin(root, normalizedTarget)) ? canonicalTarget : null;
 }
 
 function item(id, title, pathValue, updatedAt, meta = '', openPath = pathValue, sizeBytes = 0) {
@@ -1143,7 +1194,7 @@ async function hydrateIndexedEntries(entries, limit = entries.length, { includeE
     .slice(0, limit)
     .map(async (entry) => {
       const next = item(entry.id, entry.title, entry.path, entry.updatedAt, entry.meta, entry.openPath, entry.sizeBytes || 0);
-      const abs = resolveOpenClawPath(entry.path);
+      const abs = await resolveSafeOpenClawPath(entry.path);
       const ext = path.extname(entry.path).toLowerCase();
       if (includeExcerpt && ['.md', '.txt', '.log', '.json', '.jsonl', '.yaml', '.yml', '.csv'].includes(ext) && abs) {
         const raw = ext === '.txt' || ext === '.log' || ext === '.jsonl'
@@ -1373,7 +1424,7 @@ async function findRecentSkillInvocation(skillItems, sessionDirs, { windowMs = A
     if (!updatedAtMs || Date.now() - updatedAtMs > windowMs) {
       continue;
     }
-    const abs = resolveOpenClawPath(transcript.path);
+    const abs = await resolveSafeOpenClawPath(transcript.path);
     const tail = abs ? await safeTailTextRead(abs, 48000) : '';
     if (!tail) {
       continue;
@@ -1419,7 +1470,7 @@ async function findRecentCronRunInfo(runsDir, { windowMs = ACTIVE_WINDOW_MS, fil
   runFiles.sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
 
   for (const entry of runFiles.slice(0, fileLimit)) {
-    const abs = resolveOpenClawPath(entry.path);
+    const abs = await resolveSafeOpenClawPath(entry.path);
     const raw = abs ? await safeTailTextRead(abs, 32000) : '';
     const lines = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).reverse();
     for (const line of lines) {
@@ -1456,7 +1507,7 @@ async function collectDeliveryEntries(dirPath, { failed = false, limit = 8 } = {
 
   const results = [];
   for (const entry of entries) {
-    const abs = resolveOpenClawPath(entry.path);
+    const abs = await resolveSafeOpenClawPath(entry.path);
     const payload = abs ? await safeJsonRead(abs, {}) : {};
     const next = { ...entry };
     const shortId = String(payload.id || entry.title).slice(0, 8);

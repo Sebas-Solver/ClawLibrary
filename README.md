@@ -23,6 +23,8 @@ Overall, it aims to feel more like a living pixel archive than a plain folder tr
 
 ClawLibrary maps OpenClaw-related resources into visual rooms such as:
 
+![ClawLibrary preview animation](./public/ClawLibrary_preview-6s.gif)
+
 - document archive
 - image atelier
 - memory vault
@@ -40,7 +42,7 @@ The interface is mainly designed to answer two questions:
 1. What assets already exist?
 2. What is OpenClaw doing with them right now?
 
-![ClawLibrary preview animation](./public/ClawLibrary_preview-6s.gif)
+
 
 ## Core Features
 
@@ -79,6 +81,19 @@ Then open:
 
 - local only: `http://127.0.0.1:5173/`
 - LAN mode if enabled: `http://<your-ip>:5173/`
+
+The simplest way to start LAN mode is:
+
+```bash
+CLAWLIBRARY_SERVER_HOST=0.0.0.0 npm run dev
+```
+
+Use a password only for this mode:
+
+- local-only `npm run dev` on `127.0.0.1` does not require a password
+- LAN mode on `0.0.0.0` or another non-local host requires a password
+- if `auth.password` / `CLAWLIBRARY_ACCESS_PASSWORD` is unset, startup will prompt for a per-process password
+- for non-interactive launches, preconfigure `auth.password` or `CLAWLIBRARY_ACCESS_PASSWORD`
 
 If your OpenClaw installation is not under the default path, the recommended way is to edit:
 
@@ -131,8 +146,10 @@ ClawLibrary now uses `clawlibrary.config.json` at the repository root as the pub
 Current config surface includes:
 
 - `debug` — whether to show room anchors, route circles, and other debug overlays
-- `host` — `127.0.0.1` for local-only access, `0.0.0.0` for LAN access
+- `host` — `127.0.0.1` for local-only access, `0.0.0.0` or a LAN IP for shared access
 - `port` — dev server port
+- `auth.password` — required whenever `host` is not local-only
+- `auth.sessionTtlHours` — how long a successful password unlock stays valid
 - `locale` — `en` or `zh`
 - `defaultActorVariant` — choose the default actor skin
 
@@ -147,6 +164,10 @@ Default config file:
   "server": {
     "host": "127.0.0.1",
     "port": 5173
+  },
+  "auth": {
+    "password": "",
+    "sessionTtlHours": 12
   },
   "ui": {
     "defaultLocale": "en",
@@ -169,6 +190,19 @@ Supporting files:
 
 - `.env.example` — optional environment-variable override example
 - `scripts/clawlibrary-config.mjs` — shared config loader for config file + env overrides
+
+Environment variable overrides:
+
+- `CLAWLIBRARY_SERVER_HOST`
+- `CLAWLIBRARY_SERVER_PORT`
+- `CLAWLIBRARY_ACCESS_PASSWORD`
+- `CLAWLIBRARY_SESSION_TTL_HOURS`
+
+Security note:
+
+- The bundled config now defaults to `127.0.0.1`.
+- If you bind ClawLibrary to `0.0.0.0` or another non-local host, ClawLibrary uses `auth.password` / `CLAWLIBRARY_ACCESS_PASSWORD` first and otherwise prompts for a per-process password at startup.
+- For non-interactive launches, preconfigure `auth.password` or `CLAWLIBRARY_ACCESS_PASSWORD` because no terminal prompt is available.
 
 ## OpenClaw Path Discovery
 

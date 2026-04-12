@@ -1,10 +1,12 @@
 import type { Connect } from 'vite';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createInterface } from 'node:readline/promises';
 import { defineConfig } from 'vite';
 import { execFile } from 'node:child_process';
-import { clawlibraryConfig } from './scripts/clawlibrary-config.mjs';
-import { createOpenClawSnapshot, findSnapshotResource, resolveOpenClawPath } from './scripts/openclaw-telemetry.mjs';
+import { clawlibraryConfig, isLocalOnlyHost } from './scripts/clawlibrary-config.mjs';
+import { createOpenClawSnapshot, findSnapshotResource, resolveOpenClawPath, resolveSafeOpenClawPath } from './scripts/openclaw-telemetry.mjs';
 
 const TEXT_PREVIEW_LIMIT_BYTES = 180 * 1024;
 const LIVE_OVERVIEW_CACHE_TTL_MS = 20 * 1000;
@@ -20,6 +22,9 @@ const LIVE_DETAIL_CACHE_ROOT = path.join(
   'clawlibrary-resource-details'
 );
 const TAIL_PREVIEW_EXTENSIONS = new Set(['.txt', '.log', '.jsonl']);
+const ACCESS_COOKIE_NAME = 'clawlibrary_access';
+const ACCESS_LOGIN_PATH = '/__clawlibrary/login';
+const ACCESS_LOGOUT_PATH = '/__clawlibrary/logout';
 const IMAGE_CONTENT_TYPES: Record<string, string> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -60,6 +65,12 @@ const TEXT_CONTENT_TYPES: Record<string, string> = {
 type PreviewKind = 'markdown' | 'json' | 'text';
 type PreviewReadMode = 'full' | 'head' | 'tail';
 type CachedSnapshot = Awaited<ReturnType<typeof createOpenClawSnapshot>>;
+type AccessRuntime = {
+  password: string;
+  sessionTtlMs: number;
+  secret: string;
+  source: 'configured' | 'prompt';
+};
 
 let cachedLiveOverview: CachedSnapshot | null = null;
 let cachedLiveOverviewLoaded = false;
@@ -67,6 +78,387 @@ let liveOverviewRefreshPromise: Promise<CachedSnapshot> | null = null;
 const cachedLiveDetailByKey = new Map<string, CachedSnapshot>();
 const cachedLiveDetailLoadedKeys = new Set<string>();
 const liveDetailRefreshPromisesByKey = new Map<string, Promise<CachedSnapshot>>();
+
+function hostRequiresAccessAuth(hostValue: string | boolean | undefined): boolean {
+  if (hostValue === true) {
+    return true;
+  }
+  return !isLocalOnlyHost(hostValue);
+}
+
+function accessHostLabel(hostValue: string | boolean | undefined): string {
+  return typeof hostValue === 'string' && hostValue ? hostValue : String(hostValue || clawlibraryConfig.server.host);
+}
+
+function buildAccessRuntime(password: string, source: AccessRuntime['source']): AccessRuntime {
+  const normalizedPassword = String(password || '').trim();
+  return {
+    password: normalizedPassword,
+    sessionTtlMs: clawlibraryConfig.auth.sessionTtlHours * 60 * 60 * 1000,
+    secret: createHash('sha256')
+      .update(`${clawlibraryConfig.openclaw.home}|${clawlibraryConfig.openclaw.workspace}|${clawlibraryConfig.server.port}|${normalizedPassword}`)
+      .digest('hex'),
+    source
+  };
+}
+
+async function promptForHiddenPassword(promptText: string): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const stdin = process.stdin;
+    const stdout = process.stdout;
+    let password = '';
+    let finished = false;
+
+    const cleanup = () => {
+      stdin.off('data', handleData);
+      stdin.off('error', handleError);
+      if (stdin.isTTY) {
+        stdin.setRawMode(false);
+      }
+      stdin.pause();
+      stdout.write('\n');
+    };
+
+    const finish = (handler: () => void) => {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      cleanup();
+      handler();
+    };
+
+    const handleError = (error: Error) => finish(() => reject(error));
+    const handleData = (chunk: Buffer | string) => {
+      const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+      for (const char of text) {
+        if (char === '\r' || char === '\n') {
+          finish(() => resolve(password.trim()));
+          return;
+        }
+        if (char === '\u0003') {
+          finish(() => reject(new Error('Access password prompt cancelled.')));
+          return;
+        }
+        if (char === '\u0008' || char === '\u007f') {
+          password = password.slice(0, -1);
+          continue;
+        }
+        if (char >= ' ') {
+          password += char;
+        }
+      }
+    };
+
+    stdout.write(promptText);
+    stdin.resume();
+    stdin.on('data', handleData);
+    stdin.on('error', handleError);
+    if (stdin.isTTY) {
+      stdin.setRawMode(true);
+    }
+  });
+}
+
+async function promptForPipedPassword(promptText: string): Promise<string> {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  try {
+    const answer = await Promise.race([
+      rl.question(`${promptText}(stdin visible) `),
+      new Promise<string>((_resolve, reject) => {
+        setTimeout(() => reject(new Error('Timed out waiting for access password on stdin. Set CLAWLIBRARY_ACCESS_PASSWORD or provide a password on stdin.')), 5000);
+      })
+    ]);
+    return String(answer || '').trim();
+  } finally {
+    rl.close();
+  }
+}
+
+async function resolveAccessRuntime(hostValue: string | boolean | undefined): Promise<AccessRuntime> {
+  const configuredPassword = String(clawlibraryConfig.auth.password || '').trim();
+  if (!hostRequiresAccessAuth(hostValue)) {
+    return buildAccessRuntime(configuredPassword, 'configured');
+  }
+
+  if (configuredPassword) {
+    return buildAccessRuntime(configuredPassword, 'configured');
+  }
+
+  const promptText = `ClawLibrary LAN access on ${accessHostLabel(hostValue)} requires a password for this run.\nEnter access password: `;
+  const promptedPassword = process.stdin.isTTY && process.stdout.isTTY
+    ? await promptForHiddenPassword(promptText)
+    : await promptForPipedPassword(promptText);
+  if (!promptedPassword) {
+    throw new Error('No access password provided for LAN startup.');
+  }
+  if (process.stdout.isTTY) {
+    process.stdout.write('ClawLibrary LAN access password set for this process only.\n');
+  }
+  return buildAccessRuntime(promptedPassword, 'prompt');
+}
+
+function parseCookies(rawCookieHeader: string | undefined) {
+  return String(rawCookieHeader || '')
+    .split(';')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .reduce<Record<string, string>>((acc, entry) => {
+      const separatorIndex = entry.indexOf('=');
+      if (separatorIndex === -1) {
+        return acc;
+      }
+      try {
+        acc[entry.slice(0, separatorIndex)] = decodeURIComponent(entry.slice(separatorIndex + 1));
+      } catch {
+        acc[entry.slice(0, separatorIndex)] = entry.slice(separatorIndex + 1);
+      }
+      return acc;
+    }, {});
+}
+
+function createAccessSignature(expiresAtMs: number, accessRuntime: AccessRuntime): string {
+  return createHmac('sha256', accessRuntime.secret).update(String(expiresAtMs)).digest('hex');
+}
+
+function hasValidAccessSession(req: Connect.IncomingMessage, accessRuntime: AccessRuntime): boolean {
+  const rawToken = parseCookies(req.headers.cookie)[ACCESS_COOKIE_NAME];
+  if (!rawToken) {
+    return false;
+  }
+
+  const [expiresAtRaw, signature] = rawToken.split('.', 2);
+  const expiresAtMs = Number(expiresAtRaw || 0);
+  if (!expiresAtMs || expiresAtMs <= Date.now() || !signature) {
+    return false;
+  }
+
+  const expected = createAccessSignature(expiresAtMs, accessRuntime);
+  const left = Buffer.from(signature, 'utf8');
+  const right = Buffer.from(expected, 'utf8');
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+function serializeAccessSessionCookie(accessRuntime: AccessRuntime) {
+  const expiresAtMs = Date.now() + accessRuntime.sessionTtlMs;
+  const token = `${expiresAtMs}.${createAccessSignature(expiresAtMs, accessRuntime)}`;
+  const expiresAt = new Date(expiresAtMs).toUTCString();
+  return `${ACCESS_COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Expires=${expiresAt}`;
+}
+
+function clearAccessSessionCookie() {
+  return `${ACCESS_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+}
+
+function sanitizeRedirectTarget(rawValue: string | null | undefined): string {
+  const target = String(rawValue || '/').trim();
+  if (!target.startsWith('/') || target.startsWith('//') || target.startsWith(ACCESS_LOGIN_PATH)) {
+    return '/';
+  }
+  return target || '/';
+}
+
+function escapeHtml(rawValue: string): string {
+  return rawValue
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function writeJsonResponse(res: Connect.ServerResponse, statusCode: number, payload: unknown) {
+  res.statusCode = statusCode;
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+  res.end(JSON.stringify(payload));
+}
+
+async function readRequestBody(req: Connect.IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+function renderAccessLoginPage({ hostValue, error = '', redirectTo = '/' }: {
+  hostValue: string | boolean | undefined;
+  error?: string;
+  redirectTo?: string;
+}) {
+  const hostLabel = accessHostLabel(hostValue);
+  const heading = 'ClawLibrary Access';
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${heading}</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "SF Mono", Menlo, Monaco, monospace;
+        background: #f4efe5;
+        color: #1f1d19;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at top, rgba(186, 152, 109, 0.25), transparent 32%),
+          linear-gradient(180deg, #f8f4ec 0%, #efe5d3 100%);
+      }
+      .panel {
+        width: min(420px, calc(100vw - 32px));
+        padding: 28px;
+        border: 1px solid rgba(78, 61, 36, 0.18);
+        border-radius: 18px;
+        background: rgba(255, 251, 243, 0.96);
+        box-shadow: 0 22px 64px rgba(73, 49, 13, 0.12);
+      }
+      h1 {
+        margin: 0 0 10px;
+        font-size: 24px;
+      }
+      p {
+        margin: 0 0 16px;
+        line-height: 1.5;
+      }
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #6a5a42;
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 12px 14px;
+        border: 1px solid rgba(78, 61, 36, 0.22);
+        border-radius: 12px;
+        font: inherit;
+        background: #fffdfa;
+      }
+      button {
+        margin-top: 16px;
+        width: 100%;
+        padding: 12px 14px;
+        border: 0;
+        border-radius: 999px;
+        font: inherit;
+        background: #2f5f4f;
+        color: #f8f4ec;
+        cursor: pointer;
+      }
+      .error {
+        margin-bottom: 14px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(173, 57, 43, 0.09);
+        color: #8b2318;
+      }
+      .hint {
+        margin-top: 18px;
+        font-size: 12px;
+        color: #6a5a42;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="panel">
+      <h1>${heading}</h1>
+      <p>External access is protected on <strong>${escapeHtml(hostLabel)}</strong>. Enter the configured password to continue.</p>
+      ${error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
+      <form method="post" action="${ACCESS_LOGIN_PATH}">
+        <input type="hidden" name="redirectTo" value="${escapeHtml(redirectTo)}" />
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" autofocus required />
+        <button type="submit">Unlock</button>
+      </form>
+      <p class="hint">Use the password configured in <code>auth.password</code>, <code>CLAWLIBRARY_ACCESS_PASSWORD</code>, or entered at startup.</p>
+    </main>
+  </body>
+</html>`;
+}
+
+function createAccessMiddleware(hostValue: string | boolean | undefined, accessRuntime: AccessRuntime): Connect.NextHandleFunction {
+  if (!hostRequiresAccessAuth(hostValue)) {
+    return (_req, _res, next) => next();
+  }
+
+  return async (req, res, next) => {
+    const requestUrl = new URL(req.url || '/', 'http://127.0.0.1');
+    const pathname = requestUrl.pathname;
+
+    if (pathname === ACCESS_LOGIN_PATH && req.method === 'GET') {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store');
+      res.end(renderAccessLoginPage({
+        hostValue,
+        error: requestUrl.searchParams.get('error') || '',
+        redirectTo: sanitizeRedirectTarget(requestUrl.searchParams.get('redirectTo'))
+      }));
+      return;
+    }
+
+    if (pathname === ACCESS_LOGIN_PATH && req.method === 'POST') {
+      const rawBody = await readRequestBody(req);
+      const contentType = String(req.headers['content-type'] || '');
+      const parsed = contentType.includes('application/json')
+        ? JSON.parse(rawBody || '{}')
+        : Object.fromEntries(new URLSearchParams(rawBody));
+      const redirectTo = sanitizeRedirectTarget(typeof parsed.redirectTo === 'string' ? parsed.redirectTo : '/');
+      const password = String(parsed.password || '');
+      if (password !== accessRuntime.password) {
+        res.statusCode = 303;
+        res.setHeader('Location', `${ACCESS_LOGIN_PATH}?error=${encodeURIComponent('Incorrect password')}&redirectTo=${encodeURIComponent(redirectTo)}`);
+        res.setHeader('Cache-Control', 'no-store');
+        res.end();
+        return;
+      }
+      res.statusCode = 303;
+      res.setHeader('Set-Cookie', serializeAccessSessionCookie(accessRuntime));
+      res.setHeader('Location', redirectTo);
+      res.setHeader('Cache-Control', 'no-store');
+      res.end();
+      return;
+    }
+
+    if (pathname === ACCESS_LOGOUT_PATH && req.method === 'POST') {
+      res.statusCode = 303;
+      res.setHeader('Set-Cookie', clearAccessSessionCookie());
+      res.setHeader('Location', `${ACCESS_LOGIN_PATH}?redirectTo=%2F`);
+      res.setHeader('Cache-Control', 'no-store');
+      res.end();
+      return;
+    }
+
+    if (hasValidAccessSession(req, accessRuntime)) {
+      next();
+      return;
+    }
+
+    if (pathname.startsWith('/api/')) {
+      writeJsonResponse(res, 401, { ok: false, error: 'authentication required' });
+      return;
+    }
+
+    res.statusCode = 303;
+    res.setHeader('Location', `${ACCESS_LOGIN_PATH}?redirectTo=${encodeURIComponent(sanitizeRedirectTarget(`${pathname}${requestUrl.search}`))}`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.end();
+  };
+}
 
 function contentTypeForPath(target: string): string {
   const ext = path.extname(target).toLowerCase();
@@ -294,6 +686,30 @@ async function refreshLiveOverview(): Promise<CachedSnapshot> {
   return liveOverviewRefreshPromise;
 }
 
+async function resolveApiTargetPath(rawPath: string) {
+  const requestPath = String(rawPath || '').trim();
+  if (!requestPath) {
+    return { target: null, statusCode: 400, error: 'invalid path' };
+  }
+
+  const candidate = resolveOpenClawPath(requestPath);
+  if (!candidate) {
+    return { target: null, statusCode: 400, error: 'invalid path' };
+  }
+
+  const safeTarget = await resolveSafeOpenClawPath(requestPath);
+  if (safeTarget) {
+    return { target: safeTarget, statusCode: 200, error: '' };
+  }
+
+  try {
+    await fs.access(candidate);
+    return { target: null, statusCode: 403, error: 'path escapes allowed roots' };
+  } catch {
+    return { target: null, statusCode: 404, error: 'path not found' };
+  }
+}
+
 void loadCachedLiveOverview()
   .then(async () => {
     if (!cachedLiveOverview || cachedSnapshotAgeMs(cachedLiveOverview) >= LIVE_OVERVIEW_CACHE_TTL_MS) {
@@ -308,20 +724,14 @@ function telemetryMiddleware() {
   return async (req: Connect.IncomingMessage, res: Connect.ServerResponse, next: Connect.NextFunction) => {
     if (req.url?.startsWith('/api/openclaw/open') && req.method === 'POST') {
       try {
-        const chunks: Buffer[] = [];
-        for await (const chunk of req) {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-        }
-        const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
-        const target = resolveOpenClawPath(body.openPath || body.path || '');
-        if (!target) {
-          res.statusCode = 400;
-          res.setHeader('Content-Type', 'application/json; charset=utf-8');
-          res.end(JSON.stringify({ ok: false, error: 'invalid path' }));
+        const body = JSON.parse((await readRequestBody(req)) || '{}');
+        const resolved = await resolveApiTargetPath(body.openPath || body.path || '');
+        if (!resolved.target) {
+          writeJsonResponse(res, resolved.statusCode, { ok: false, error: resolved.error });
           return;
         }
         await new Promise<void>((resolve, reject) => {
-          execFile('open', [target], (error) => {
+          execFile('open', [resolved.target], (error) => {
             if (error) {
               reject(error);
               return;
@@ -329,13 +739,9 @@ function telemetryMiddleware() {
             resolve();
           });
         });
-        res.statusCode = 200;
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.end(JSON.stringify({ ok: true }));
+        writeJsonResponse(res, 200, { ok: true });
       } catch (error) {
-        res.statusCode = 500;
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.end(JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }));
+        writeJsonResponse(res, 500, { ok: false, error: error instanceof Error ? error.message : String(error) });
       }
       return;
     }
@@ -344,22 +750,18 @@ function telemetryMiddleware() {
       try {
         const requestUrl = new URL(req.url, 'http://127.0.0.1');
         const rawPath = requestUrl.searchParams.get('path') || '';
-        const target = resolveOpenClawPath(rawPath);
-        if (!target) {
-          res.statusCode = 400;
-          res.setHeader('Content-Type', 'application/json; charset=utf-8');
-          res.end(JSON.stringify({ ok: false, error: 'invalid path' }));
+        const resolved = await resolveApiTargetPath(rawPath);
+        if (!resolved.target) {
+          writeJsonResponse(res, resolved.statusCode, { ok: false, error: resolved.error });
           return;
         }
-        const file = await fs.readFile(target);
+        const file = await fs.readFile(resolved.target);
         res.statusCode = 200;
-        res.setHeader('Content-Type', contentTypeForPath(target));
+        res.setHeader('Content-Type', contentTypeForPath(resolved.target));
         res.setHeader('Cache-Control', 'no-store');
         res.end(file);
       } catch (error) {
-        res.statusCode = 500;
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.end(JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }));
+        writeJsonResponse(res, 500, { ok: false, error: error instanceof Error ? error.message : String(error) });
       }
       return;
     }
@@ -368,27 +770,25 @@ function telemetryMiddleware() {
       try {
         const requestUrl = new URL(req.url, 'http://127.0.0.1');
         const rawPath = requestUrl.searchParams.get('path') || '';
-        const target = resolveOpenClawPath(rawPath);
-        if (!target) {
-          res.statusCode = 400;
-          res.setHeader('Content-Type', 'application/json; charset=utf-8');
-          res.end(JSON.stringify({ ok: false, error: 'invalid path' }));
+        const resolved = await resolveApiTargetPath(rawPath);
+        if (!resolved.target) {
+          writeJsonResponse(res, resolved.statusCode, { ok: false, error: resolved.error });
           return;
         }
 
-        const stat = await fs.stat(target);
+        const stat = await fs.stat(resolved.target);
         if (stat.isDirectory()) {
           res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
           res.setHeader('Cache-Control', 'no-store');
-          res.end(JSON.stringify(await buildDirectoryPreview(target, rawPath)));
+          res.end(JSON.stringify(await buildDirectoryPreview(resolved.target, rawPath)));
           return;
         }
 
-        const ext = path.extname(target).toLowerCase();
-        const kind = previewKindForPath(target) ?? 'text';
+        const ext = path.extname(resolved.target).toLowerCase();
+        const kind = previewKindForPath(resolved.target) ?? 'text';
         const requestedMode = TAIL_PREVIEW_EXTENSIONS.has(ext) ? 'tail' : 'head';
-        const preview = await readTextPreview(target, requestedMode);
+        const preview = await readTextPreview(resolved.target, requestedMode);
         res.statusCode = 200;
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.setHeader('Cache-Control', 'no-store');
@@ -396,15 +796,13 @@ function telemetryMiddleware() {
           ok: true,
           kind,
           path: rawPath,
-          contentType: contentTypeForPath(target),
+          contentType: contentTypeForPath(resolved.target),
           content: formatPreviewContent(kind, preview.content),
           truncated: preview.truncated,
           readMode: preview.readMode
         }));
       } catch (error) {
-        res.statusCode = 500;
-        res.setHeader('Content-Type', 'application/json; charset=utf-8');
-        res.end(JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }));
+        writeJsonResponse(res, 500, { ok: false, error: error instanceof Error ? error.message : String(error) });
       }
       return;
     }
@@ -786,25 +1184,35 @@ async function readChatMessages(): Promise<ChatMessage[]> {
   return messages.slice(-CHAT_MAX_MESSAGES);
 }
 
-export default defineConfig({
-  plugins: [
-    {
-      name: 'openclaw-telemetry-bridge',
-      configureServer(server) {
-        server.middlewares.use(telemetryMiddleware());
-      },
-      configurePreviewServer(server) {
-        server.middlewares.use(telemetryMiddleware());
+export default defineConfig(async ({ command }) => {
+  const accessRuntime = command === 'serve'
+    ? await resolveAccessRuntime(clawlibraryConfig.server.host)
+    : buildAccessRuntime(String(clawlibraryConfig.auth.password || ''), 'configured');
+
+  return {
+    plugins: [
+      {
+        name: 'openclaw-telemetry-bridge',
+        configureServer(server) {
+          server.middlewares.use(createAccessMiddleware(server.config.server.host, accessRuntime));
+          server.middlewares.use(telemetryMiddleware());
+        },
+        configurePreviewServer(server) {
+          server.middlewares.use(createAccessMiddleware(server.config.preview.host, accessRuntime));
+          server.middlewares.use(telemetryMiddleware());
+        }
       }
+    ],
+    build: {
+      emptyOutDir: false
+    },
+    server: {
+      host: clawlibraryConfig.server.host,
+      port: clawlibraryConfig.server.port,
+      strictPort: true
+    },
+    preview: {
+      host: clawlibraryConfig.server.host
     }
-  ],
-  build: {
-    emptyOutDir: false
-  },
-  server: {
-    host: clawlibraryConfig.server.host,
-    port: clawlibraryConfig.server.port,
-    strictPort: true,
-    allowedHosts: 'all'
-  }
+  };
 });

@@ -14,6 +14,10 @@ const DEFAULT_CONFIG = {
     host: '127.0.0.1',
     port: 5173
   },
+  auth: {
+    password: '',
+    sessionTtlHours: 12
+  },
   ui: {
     defaultLocale: 'en',
     showDebugToggle: false,
@@ -68,6 +72,10 @@ function mergeConfig(base, extra) {
       ...base.server,
       ...(extra.server || {})
     },
+    auth: {
+      ...base.auth,
+      ...(extra.auth || {})
+    },
     ui: {
       ...base.ui,
       ...(extra.ui || {})
@@ -111,8 +119,27 @@ export function loadClawLibraryConfig() {
     openclaw: {
       home: openclawHome,
       workspace: openclawWorkspace
+    },
+    server: {
+      ...merged.server,
+      host: String(env.CLAWLIBRARY_SERVER_HOST || merged.server.host || '127.0.0.1'),
+      port: Number(env.CLAWLIBRARY_SERVER_PORT || merged.server.port || 5173)
+    },
+    auth: {
+      ...merged.auth,
+      password: String(env.CLAWLIBRARY_ACCESS_PASSWORD || merged.auth.password || ''),
+      sessionTtlHours: Math.max(1, Number(env.CLAWLIBRARY_SESSION_TTL_HOURS || merged.auth.sessionTtlHours || 12))
     }
   };
 }
 
 export const clawlibraryConfig = loadClawLibraryConfig();
+
+export function isLocalOnlyHost(rawHost) {
+  const host = String(rawHost ?? '').trim().toLowerCase();
+  return host === ''
+    || host === 'localhost'
+    || host === '127.0.0.1'
+    || host === '::1'
+    || host === '[::1]';
+}
