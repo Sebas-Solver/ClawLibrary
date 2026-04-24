@@ -320,6 +320,84 @@
             "animation": { "fps": 6, "repeat": -1 }
           }
         ]
+      },
+      {
+        "id": "kora-robot",
+        "label": "Kora",
+        "modes": [
+          {
+            "mode": "idle",
+            "stateIds": ["idle"],
+            "textureKey": "kora-robot-stand-front",
+            "path": "/assets/generated/actors/kora-robot-v1/sheets/stand_front-spritesheet.png",
+            "kind": "image"
+          },
+          {
+            "mode": "moving",
+            "textureKey": "kora-robot-walk",
+            "path": "/assets/generated/actors/kora-robot-v1/sheets/walk-spritesheet.png",
+            "kind": "image"
+          },
+          {
+            "mode": "working",
+            "stateIds": ["writing", "executing", "cataloging", "documenting", "monitoring", "researching", "syncing", "error", "resting"],
+            "textureKey": "kora-robot-work",
+            "path": "/assets/generated/actors/kora-robot-v1/sheets/work-spritesheet.png",
+            "kind": "image"
+          }
+        ]
+      },
+      {
+        "id": "sumi-secretary",
+        "label": "Sumi",
+        "modes": [
+          {
+            "mode": "idle",
+            "stateIds": ["idle"],
+            "textureKey": "sumi-secretary-stand-front",
+            "path": "/assets/generated/actors/sumi-secretary-v1/sheets/stand_front-spritesheet.png",
+            "kind": "image"
+          },
+          {
+            "mode": "moving",
+            "textureKey": "sumi-secretary-walk",
+            "path": "/assets/generated/actors/sumi-secretary-v1/sheets/walk-spritesheet.png",
+            "kind": "image"
+          },
+          {
+            "mode": "working",
+            "stateIds": ["writing", "executing", "cataloging", "documenting", "monitoring", "researching", "syncing", "error", "resting"],
+            "textureKey": "sumi-secretary-work",
+            "path": "/assets/generated/actors/sumi-secretary-v1/sheets/work-spritesheet.png",
+            "kind": "image"
+          }
+        ]
+      },
+      {
+        "id": "gael-doctor",
+        "label": "Gael",
+        "modes": [
+          {
+            "mode": "idle",
+            "stateIds": ["idle"],
+            "textureKey": "gael-doctor-stand-front",
+            "path": "/assets/generated/actors/gael-doctor-v1/sheets/stand_front-spritesheet.png",
+            "kind": "image"
+          },
+          {
+            "mode": "moving",
+            "textureKey": "gael-doctor-walk",
+            "path": "/assets/generated/actors/gael-doctor-v1/sheets/walk-spritesheet.png",
+            "kind": "image"
+          },
+          {
+            "mode": "working",
+            "stateIds": ["writing", "executing", "cataloging", "documenting", "monitoring", "researching", "syncing", "error", "resting"],
+            "textureKey": "gael-doctor-work",
+            "path": "/assets/generated/actors/gael-doctor-v1/sheets/work-spritesheet.png",
+            "kind": "image"
+          }
+        ]
       }
     ]
   },

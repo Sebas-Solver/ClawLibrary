@@ -89,6 +89,8 @@ type AgentActor = {
   id: string;
   label: string;
   kind: AgentActorKind;
+  /** Optional variant id to use a specific sprite set for this agent */
+  variantId: string | null;
   container: Phaser.GameObjects.Container;
   body: Phaser.GameObjects.Sprite | Phaser.GameObjects.Arc | null;
   route: Point[];
@@ -366,7 +368,7 @@ export class LibraryScene extends Phaser.Scene {
     this.maybeProcessTelemetryQueue();
   }
 
-  public spawnAgentActor(runId: string, label: string, kind: AgentActorKind = 'subagent'): void {
+  public spawnAgentActor(runId: string, label: string, kind: AgentActorKind = 'subagent', agentVariantId?: string): void {
     if (this.agentActors.some((actor) => actor.id === runId)) {
       return;
     }
@@ -395,13 +397,20 @@ export class LibraryScene extends Phaser.Scene {
     }
 
     const children: Phaser.GameObjects.GameObject[] = [];
-    const actor = this.protocols.sceneArt.actor;
-    const variant = this.resolveActorVariant();
-    const idleVisual = this.resolveActorMode('idle');
+    const actorDef = this.protocols.sceneArt.actor;
+
+    // Resolve variant: use agent-specific variantId if provided, else fall back to main actor variant
+    const resolvedVariantId = agentVariantId ?? null;
+    const variant = resolvedVariantId
+      ? this.resolveActorVariants().find((v) => v.id === resolvedVariantId) ?? this.resolveActorVariant()
+      : this.resolveActorVariant();
+    const idleVisual = variant
+      ? (variant.modes.find((m) => m.mode === 'idle') ?? variant.modes[0] ?? null)
+      : this.resolveActorMode('idle');
 
     // Subtle shadow
-    if (actor?.shadow) {
-      const shadow = this.add.ellipse(0, actor.shadow.offsetY, actor.shadow.width * 0.85, actor.shadow.height * 0.85, 0x081018, actor.shadow.alpha * 0.7);
+    if (actorDef?.shadow) {
+      const shadow = this.add.ellipse(0, actorDef.shadow.offsetY, actorDef.shadow.width * 0.85, actorDef.shadow.height * 0.85, 0x081018, actorDef.shadow.alpha * 0.7);
       children.push(shadow);
     }
 
@@ -415,9 +424,9 @@ export class LibraryScene extends Phaser.Scene {
     const nameTagPrefix = isExecProcess ? '⚙ ' : '';
 
     let body: Phaser.GameObjects.Sprite | Phaser.GameObjects.Arc | null = null;
-    if (actor && variant && idleVisual) {
-      const sprite = this.add.sprite(actor.anchorOffset?.x ?? 0, actor.anchorOffset?.y ?? 0, idleVisual.textureKey);
-      sprite.setDisplaySize(actor.displaySize.width * scaleFactor, actor.displaySize.height * scaleFactor);
+    if (actorDef && variant && idleVisual) {
+      const sprite = this.add.sprite(actorDef.anchorOffset?.x ?? 0, actorDef.anchorOffset?.y ?? 0, idleVisual.textureKey);
+      sprite.setDisplaySize(actorDef.displaySize.width * scaleFactor, actorDef.displaySize.height * scaleFactor);
       if (tintColor) sprite.setTint(tintColor);
       children.push(sprite);
       body = sprite;
@@ -465,6 +474,7 @@ export class LibraryScene extends Phaser.Scene {
       id: runId,
       label,
       kind,
+      variantId: resolvedVariantId,
       container,
       body,
       route: [],
@@ -478,8 +488,8 @@ export class LibraryScene extends Phaser.Scene {
       lingerUntil: 0
     };
 
-    // Set initial animation for subagents
-    if (kind === 'subagent') {
+    // Set initial animation for subagents and persistent agents with custom variant
+    if (kind === 'subagent' || resolvedVariantId) {
       this.updateAgentActorVisual(agentActor, 'idle');
     }
 
@@ -2691,12 +2701,15 @@ export class LibraryScene extends Phaser.Scene {
       return;
     }
     const actorDef = this.protocols.sceneArt.actor;
-    const variant = this.resolveActorVariant();
+    // Use the agent's own variant if it has one, otherwise fall back to the main actor variant
+    const variant = agentActor.variantId
+      ? this.resolveActorVariants().find((v) => v.id === agentActor.variantId) ?? this.resolveActorVariant()
+      : this.resolveActorVariant();
     if (!actorDef || !variant) {
       return;
     }
 
-    // Resolve the mode entry — reuse resolveActorMode which reads from variant.modes
+    // Resolve the mode entry from the agent's variant
     const candidates = variant.modes.filter((m) => m.mode === mode);
     const fallback = variant.modes.filter((m) => m.mode === 'idle');
     const modeEntry = (candidates.length > 0 ? candidates : fallback)[0] ?? variant.modes[0];

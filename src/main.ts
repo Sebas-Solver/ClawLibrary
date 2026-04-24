@@ -144,11 +144,11 @@ const AGENT_VISIBILITY_STORAGE_KEY = 'clawlibrary-agent-visibility-v1';
 
 /** Config agents list (all agents including main) */
 const DEFAULT_AGENTS = [
-  { id: 'kora',  label: 'Kora',  role: 'main',       description: 'Agente principal — robot humanoide femenina', color: '#7cf0d0' },
-  { id: 'sumi',  label: 'Sumi',  role: 'assistant',   description: 'Secretaria y organizadora',                   color: '#f0a0e0' },
-  { id: 'gael',  label: 'Gael',  role: 'specialist',  description: 'Médico, nutricionista y coach personal',      color: '#80c0ff' }
+  { id: 'kora',  label: 'Kora',  role: 'main',       description: 'Agente principal — robot humanoide femenina', color: '#7cf0d0', variantId: 'kora-robot' },
+  { id: 'sumi',  label: 'Sumi',  role: 'assistant',   description: 'Secretaria y organizadora',                   color: '#a0a0a0', variantId: 'sumi-secretary' },
+  { id: 'gael',  label: 'Gael',  role: 'specialist',  description: 'Médico, nutricionista y coach personal',      color: '#80c0ff', variantId: 'gael-doctor' }
 ];
-const configAgents: Array<{ id: string; label: string; role: string; description: string; color: string }> =
+const configAgents: Array<{ id: string; label: string; role: string; description: string; color: string; variantId?: string }> =
   Array.isArray((appConfig as any).agents) && (appConfig as any).agents.length > 0
     ? (appConfig as any).agents
     : DEFAULT_AGENTS;
@@ -3064,7 +3064,8 @@ async function refreshTelemetry(): Promise<void> {
           // Respect user's visibility toggle — don't spawn hidden agents
           if (agentVisibility.get(agent.id) !== false) {
             const spawnKind = (agent as any).persistent ? 'persistent' : 'subagent';
-            activeScene.spawnAgentActor(agent.id, agent.label, spawnKind);
+            const cfgAgent = configAgents.find((a) => a.id === agent.id);
+            activeScene.spawnAgentActor(agent.id, agent.label, spawnKind, cfgAgent?.variantId);
           }
         }
       }
@@ -3215,7 +3216,7 @@ agentRoster?.addEventListener('click', (event) => {
       } else {
         // Secondary agent — spawn or despawn
         if (nowVisible) {
-          activeScene.spawnAgentActor(agentId, agent.label, 'persistent');
+          activeScene.spawnAgentActor(agentId, agent.label, 'persistent', agent.variantId);
         } else {
           activeScene.despawnAgentActor(agentId);
         }
