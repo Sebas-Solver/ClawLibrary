@@ -35,7 +35,7 @@ const RESOURCE_UI_ALIAS: Partial<Record<ResourcePartitionId, ResourcePartitionId
 const DEFAULT_UI_LOCALE = (appConfig.ui.defaultLocale === 'zh' ? 'zh' : appConfig.ui.defaultLocale === 'es' ? 'es' : 'en') as UiLocale;
 
 /** Name of the primary agent from config (the "lobster" actor) */
-const MAIN_AGENT_NAME = ((appConfig as any).agents ?? []).find((a: any) => a.role === 'main')?.label ?? 'Agent';
+const MAIN_AGENT_NAME = ((appConfig as any).agents ?? []).find((a: any) => a.role === 'main')?.label ?? 'Kora';
 
 /** Tri-locale helper: returns the string matching the active uiLocale. */
 function t(en: string, zh: string, es: string): string {
@@ -143,8 +143,15 @@ const agentRoster = document.getElementById('agent-roster');
 const AGENT_VISIBILITY_STORAGE_KEY = 'clawlibrary-agent-visibility-v1';
 
 /** Config agents list (all agents including main) */
+const DEFAULT_AGENTS = [
+  { id: 'kora',  label: 'Kora',  role: 'main',       description: 'Agente principal — robot humanoide femenina', color: '#7cf0d0' },
+  { id: 'sumi',  label: 'Sumi',  role: 'assistant',   description: 'Secretaria y organizadora',                   color: '#f0a0e0' },
+  { id: 'gael',  label: 'Gael',  role: 'specialist',  description: 'Médico, nutricionista y coach personal',      color: '#80c0ff' }
+];
 const configAgents: Array<{ id: string; label: string; role: string; description: string; color: string }> =
-  ((appConfig as any).agents ?? []);
+  Array.isArray((appConfig as any).agents) && (appConfig as any).agents.length > 0
+    ? (appConfig as any).agents
+    : DEFAULT_AGENTS;
 
 /** Visibility state per agent id — persisted in localStorage */
 const agentVisibility = new Map<string, boolean>();

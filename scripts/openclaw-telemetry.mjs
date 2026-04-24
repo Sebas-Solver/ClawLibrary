@@ -1726,7 +1726,15 @@ async function buildLiveResources({ itemResourceIds = null, includeExcerpt = tru
     : [];
 
   // Merge persistent agents from config (skip 'main' role — that's the primary actor / lobster)
-  const configuredAgents = (clawlibraryConfig.agents || [])
+  const DEFAULT_AGENTS_SERVER = [
+    { id: 'kora',  label: 'Kora',  role: 'main',       description: 'Agente principal', color: '#7cf0d0' },
+    { id: 'sumi',  label: 'Sumi',  role: 'assistant',   description: 'Secretaria y organizadora', color: '#f0a0e0' },
+    { id: 'gael',  label: 'Gael',  role: 'specialist',  description: 'Médico, nutricionista y coach personal', color: '#80c0ff' }
+  ];
+  const agentsFromConfig = Array.isArray(clawlibraryConfig.agents) && clawlibraryConfig.agents.length > 0
+    ? clawlibraryConfig.agents
+    : DEFAULT_AGENTS_SERVER;
+  const configuredAgents = agentsFromConfig
     .filter((agent) => agent.role !== 'main')
     .map((agent) => ({
       id: agent.id,
