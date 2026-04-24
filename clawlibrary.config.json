@@ -12,7 +12,7 @@
     "sessionTtlHours": 12
   },
   "ui": {
-    "defaultLocale": "en",
+    "defaultLocale": "es",
     "showDebugToggle": false,
     "defaultDebugVisible": false,
     "showInfoToggle": true,

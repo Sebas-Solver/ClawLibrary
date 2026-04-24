@@ -32,7 +32,12 @@ const EXTERNAL_KIND_MENU_RESOURCE_IDS = new Set<ResourcePartitionId>(['gateway',
 const RESOURCE_UI_ALIAS: Partial<Record<ResourcePartitionId, ResourcePartitionId>> = {
   task_queues: 'gateway'
 };
-const DEFAULT_UI_LOCALE = (appConfig.ui.defaultLocale === 'zh' ? 'zh' : 'en') as UiLocale;
+const DEFAULT_UI_LOCALE = (appConfig.ui.defaultLocale === 'zh' ? 'zh' : appConfig.ui.defaultLocale === 'es' ? 'es' : 'en') as UiLocale;
+
+/** Tri-locale helper: returns the string matching the active uiLocale. */
+function t(en: string, zh: string, es: string): string {
+  return uiLocale === 'zh' ? zh : uiLocale === 'es' ? es : en;
+}
 
 const scene = new LibraryScene();
 
@@ -471,50 +476,50 @@ function kindGroupsForResource(resourceId: ResourcePartitionId): Array<{ id: str
 
 function kindMenuLabelForResource(resourceId: ResourcePartitionId, kindId: string): string {
   if (resourceId === 'document') {
-    if (kindId === 'Task Docs') return uiLocale === 'zh' ? '任务文档' : 'Tasks';
-    if (kindId === 'Readmes') return uiLocale === 'zh' ? '说明文档' : 'Readmes';
-    if (kindId === 'Reports') return uiLocale === 'zh' ? '报告' : 'Reports';
-    if (kindId === 'Plans') return uiLocale === 'zh' ? '计划' : 'Plans';
-    if (kindId === 'Data Files') return uiLocale === 'zh' ? '数据' : 'Data';
-    if (kindId === 'Documents') return uiLocale === 'zh' ? '文档' : 'Docs';
+    if (kindId === 'Task Docs') return t('Tasks', '任务文档', 'Tareas');
+    if (kindId === 'Readmes') return t('Readmes', '说明文档', 'Leéme');
+    if (kindId === 'Reports') return t('Reports', '报告', 'Informes');
+    if (kindId === 'Plans') return t('Plans', '计划', 'Planes');
+    if (kindId === 'Data Files') return t('Data', '数据', 'Datos');
+    if (kindId === 'Documents') return t('Docs', '文档', 'Docs');
   }
 
   if (resourceId === 'memory') {
-    if (kindId === 'Daily Notes') return uiLocale === 'zh' ? '日记' : 'Daily';
-    if (kindId === 'Core Memory') return uiLocale === 'zh' ? '核心记忆' : 'Core';
-    if (kindId === 'Finance Memory') return uiLocale === 'zh' ? '财务记忆' : 'Finance';
-    if (kindId === 'Memory Notes') return uiLocale === 'zh' ? '笔记' : 'Notes';
+    if (kindId === 'Daily Notes') return t('Daily', '日记', 'Diario');
+    if (kindId === 'Core Memory') return t('Core', '核心记忆', 'Núcleo');
+    if (kindId === 'Finance Memory') return t('Finance', '财务记忆', 'Finanzas');
+    if (kindId === 'Memory Notes') return t('Notes', '笔记', 'Notas');
   }
 
   if (resourceId === 'gateway') {
-    if (kindId === 'Queue Status') return uiLocale === 'zh' ? '队列' : 'Queue';
-    if (kindId === 'Connections') return uiLocale === 'zh' ? '连接' : 'Connect';
+    if (kindId === 'Queue Status') return t('Queue', '队列', 'Cola');
+    if (kindId === 'Connections') return t('Connect', '连接', 'Conexiones');
   }
 
   if (resourceId === 'break_room') {
-    if (kindId === 'Upgrade Watch') return uiLocale === 'zh' ? '升级' : 'Upgrade';
+    if (kindId === 'Upgrade Watch') return t('Upgrade', '升级', 'Actualización');
   }
 
   if (resourceId === 'agent') {
-    if (kindId === 'Parallel Runs') return uiLocale === 'zh' ? '并行运行' : 'Parallel Runs';
-    if (kindId === 'Sessions') return uiLocale === 'zh' ? '会话' : 'Sessions';
-    if (kindId === 'Subagent Runs') return uiLocale === 'zh' ? '子代理运行' : 'Subagent Runs';
-    if (kindId === 'Task Status') return uiLocale === 'zh' ? '任务状态' : 'Task Status';
-    if (kindId === 'Agent State') return uiLocale === 'zh' ? '运行状态' : 'Agent State';
+    if (kindId === 'Parallel Runs') return t('Parallel Runs', '并行运行', 'Ejecuciones Paralelas');
+    if (kindId === 'Sessions') return t('Sessions', '会话', 'Sesiones');
+    if (kindId === 'Subagent Runs') return t('Subagent Runs', '子代理运行', 'Ejecuciones de Subagentes');
+    if (kindId === 'Task Status') return t('Task Status', '任务状态', 'Estado de Tareas');
+    if (kindId === 'Agent State') return t('Agent State', '运行状态', 'Estado del Agente');
   }
 
   if (resourceId === 'task_queues') {
-    if (kindId === 'Blocked Tasks') return uiLocale === 'zh' ? '阻塞任务' : 'Blocked Tasks';
-    if (kindId === 'Paused Tasks') return uiLocale === 'zh' ? '已暂停任务' : 'Paused Tasks';
-    if (kindId === 'Pending Tasks') return uiLocale === 'zh' ? '待处理任务' : 'Pending Tasks';
-    if (kindId === 'Running Tasks') return uiLocale === 'zh' ? '运行中任务' : 'Running Tasks';
-    if (kindId === 'Completed Tasks') return uiLocale === 'zh' ? '已完成任务' : 'Completed Tasks';
-    if (kindId === 'Deliveries') return uiLocale === 'zh' ? '投递项' : 'Deliveries';
+    if (kindId === 'Blocked Tasks') return t('Blocked Tasks', '阻塞任务', 'Tareas Bloqueadas');
+    if (kindId === 'Paused Tasks') return t('Paused Tasks', '已暂停任务', 'Tareas Pausadas');
+    if (kindId === 'Pending Tasks') return t('Pending Tasks', '待处理任务', 'Tareas Pendientes');
+    if (kindId === 'Running Tasks') return t('Running Tasks', '运行中任务', 'Tareas en Ejecución');
+    if (kindId === 'Completed Tasks') return t('Completed Tasks', '已完成任务', 'Tareas Completadas');
+    if (kindId === 'Deliveries') return t('Deliveries', '投递项', 'Entregas');
   }
 
   if (resourceId === 'alarm') {
-    if (kindId === 'Blocked Tasks') return uiLocale === 'zh' ? '阻塞任务' : 'Blocked Tasks';
-    if (kindId === 'Failed Deliveries') return uiLocale === 'zh' ? '失败投递' : 'Failed Deliveries';
+    if (kindId === 'Blocked Tasks') return t('Blocked Tasks', '阻塞任务', 'Tareas Bloqueadas');
+    if (kindId === 'Failed Deliveries') return t('Failed Deliveries', '失败投递', 'Entregas Fallidas');
   }
 
   return kindId;
@@ -746,7 +751,7 @@ function modalDefaultsForResource(resourceId: ResourcePartitionId): {
 function loadLocale(): void {
   try {
     const saved = localStorage.getItem(UI_LOCALE_STORAGE_KEY);
-    if (saved === 'zh' || saved === 'en') {
+    if (saved === 'zh' || saved === 'en' || saved === 'es') {
       uiLocale = saved;
       return;
     }
@@ -1043,22 +1048,18 @@ function previewUrlForItem(item: OpenClawResourceItem): string {
 
 function previewNoteForPayload(payload: PreviewPayload): string {
   const kindLabel = payload.kind === 'image'
-    ? (uiLocale === 'zh' ? '图片放大预览' : 'Image lightbox')
+    ? t('Image lightbox', '图片放大预览', 'Vista ampliada')
     : payload.kind === 'markdown'
-      ? (uiLocale === 'zh' ? '简化 Markdown 渲染' : 'Simplified Markdown rendering')
+      ? t('Simplified Markdown rendering', '简化 Markdown 渲染', 'Renderizado Markdown simplificado')
       : payload.kind === 'json'
         ? 'JSON'
-        : (uiLocale === 'zh' ? '文本预览' : 'Text preview');
+        : t('Text preview', '文本预览', 'Vista previa de texto');
 
   if (payload.truncated && payload.readMode === 'tail') {
-    return uiLocale === 'zh'
-      ? `${kindLabel} · 仅载入大文件最后一段`
-      : `${kindLabel} · showing the latest slice of a large file`;
+    return `${kindLabel} · ${t('showing the latest slice of a large file', '仅载入大文件最后一段', 'mostrando el final de un archivo grande')}`;
   }
   if (payload.truncated) {
-    return uiLocale === 'zh'
-      ? `${kindLabel} · 仅载入文件前一段`
-      : `${kindLabel} · showing the first slice of a large file`;
+    return `${kindLabel} · ${t('showing the first slice of a large file', '仅载入文件前一段', 'mostrando el inicio de un archivo grande')}`;
   }
   return kindLabel;
 }
@@ -1377,6 +1378,20 @@ function itemRawMetaLabel(entry: OpenClawResourceItem): string {
     if (normalized === 'recovery') return '恢复';
     if (normalized === 'upgrade') return '升级';
   }
+  if (uiLocale === 'es') {
+    const normalized = rawMeta.toLowerCase();
+    if (normalized === 'blocked') return 'Bloqueada';
+    if (normalized === 'paused') return 'Pausada';
+    if (normalized === 'pending') return 'Pendiente';
+    if (normalized === 'running' || normalized === 'active') return 'En ejecución';
+    if (normalized === 'completed' || normalized === 'done') return 'Completada';
+    if (normalized === 'queue overview') return 'Vista de colas';
+    if (normalized === 'failed delivery') return 'Entrega fallida';
+    if (normalized === 'health') return 'Salud del sistema';
+    if (normalized === 'maintenance') return 'Mantenimiento';
+    if (normalized === 'recovery') return 'Recuperación';
+    if (normalized === 'upgrade') return 'Actualización';
+  }
   return ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'md', 'json', 'txt', 'csv', 'pdf']
     .includes(rawMeta.toLowerCase())
     ? rawMeta.toUpperCase()
@@ -1385,7 +1400,37 @@ function itemRawMetaLabel(entry: OpenClawResourceItem): string {
 
 function humanizeTelemetryText(text: string | null | undefined): string {
   const raw = String(text ?? '');
-  if (uiLocale !== 'zh' || !raw) {
+  if (!raw) {
+    return raw;
+  }
+
+  if (uiLocale === 'es') {
+    return raw
+      .replace(/^Paused Task · /, '⏸️ Tarea Pausada · ')
+      .replace(/^Blocked Task · /, '🔴 Tarea Bloqueada · ')
+      .replace(/^Pending Task · /, '🟡 Tarea Pendiente · ')
+      .replace(/^Running Task · /, '🟢 Tarea en Ejecución · ')
+      .replace(/^Completed Task · /, '✅ Tarea Completada · ')
+      .replace(/^Parallel Runs$/, 'Ejecuciones Paralelas')
+      .replace(/^Queue Overview$/, 'Vista de Colas')
+      .replace(/^System Health$/, 'Salud del Sistema')
+      .replace(/^Maintenance Board$/, 'Panel de Mantenimiento')
+      .replace(/(\d+)\s+blocked tasks?\s+need routing/g, '$1 tarea(s) bloqueada(s) necesitan atención')
+      .replace(/(\d+)\s+blocked tasks?/g, '$1 tarea(s) bloqueada(s)')
+      .replace(/(\d+)\s+paused tasks?/g, '$1 tarea(s) pausada(s)')
+      .replace(/(\d+)\s+pending/g, '$1 pendiente(s)')
+      .replace(/(\d+)\s+running/g, '$1 en ejecución')
+      .replace(/(\d+)\s+completed/g, '$1 completada(s)')
+      .replace(/(\d+)\s+failed deliveries/g, '$1 entrega(s) fallida(s)')
+      .replace(/(\d+)\s+deliveries/g, '$1 entrega(s)')
+      .replace(/(\d+)\s+queue tasks?/g, '$1 tarea(s) en cola')
+      .replace(/(\d+)\s+tasks?\s+currently running/g, '$1 tarea(s) en ejecución')
+      .replace(/Paused by user request/gi, 'Pausada por solicitud del usuario')
+      .replace(/failed deliveries or blocked tasks present/gi, 'Hay entregas fallidas o tareas bloqueadas')
+      .replace(/^latest\s+/i, 'Última ');
+  }
+
+  if (uiLocale !== 'zh') {
     return raw;
   }
 
@@ -1653,6 +1698,29 @@ function dateTimeOf(value: string | null | undefined): string {
   });
 }
 
+/** Returns relative time like "hace 5 min" / "5 min ago" / "5分钟前" */
+function timeAgo(value: string | null | undefined): string {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(value);
+  const now = Date.now();
+  const diff = now - date.getTime();
+  if (Number.isNaN(diff) || diff < 0) {
+    return '';
+  }
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (seconds < 60) return t('just now', '刚刚', 'ahora mismo');
+  if (minutes < 60) return t(`${minutes} min ago`, `${minutes}分钟前`, `hace ${minutes} min`);
+  if (hours < 24) return t(`${hours}h ago`, `${hours}小时前`, `hace ${hours}h`);
+  if (days < 7) return t(`${days}d ago`, `${days}天前`, `hace ${days}d`);
+  return dateTimeOf(value);
+}
+
 function setModalFeedback(message: string, tone: 'info' | 'error' = 'info'): void {
   if (!assetModalFeedback) {
     return;
@@ -1688,7 +1756,7 @@ function renderResourceContext(
   const focus = lastSnapshot?.focus;
   const focusText = focus && uiResourceId(focus.resourceId) === resource.id
     ? `${focus.reason} · ${humanizeTelemetryText(focus.detail)}`
-    : (uiLocale === 'zh' ? '当前不是焦点资源' : 'Not current focus');
+    : t('Not current focus', '当前不是焦点资源', 'No es el foco actual');
   const contextCard = (label: string, value: string) => `
     <div class="modal-context-card" title="${escapeHtml(value)}">
       <div class="modal-context-label">${label}</div>
@@ -1721,7 +1789,7 @@ function contextSummaryForResource(
   const focus = lastSnapshot?.focus;
   const focusText = focus && uiResourceId(focus.resourceId) === resource.id
     ? `${focus.reason} · ${humanizeTelemetryText(focus.detail)}`
-    : (uiLocale === 'zh' ? '当前不是焦点资源' : 'Not current focus');
+    : t('Not current focus', '当前不是焦点资源', 'No es el foco actual');
   const recentEvents = recentEventsForResource(resource.id, 3);
   const lines = [
     `${resource.label}`,
@@ -1929,21 +1997,21 @@ function renderActorLiveStatus(): void {
   const focus = lastSnapshot?.focus;
   if (!status || !focus) {
     hudActorStatus.innerHTML = `
-      <strong>${escapeHtml(uiLocale === 'zh' ? '角色状态 · 等待中' : 'Actor · Waiting')}</strong>
-      <span>${escapeHtml(uiLocale === 'zh' ? '正在等待实时状态同步。' : 'Waiting for live status.')}</span>
+      <strong>${escapeHtml(t('Actor · Waiting', '角色状态 · 等待中', 'Agente · Esperando'))}</strong>
+      <span>${escapeHtml(t('Waiting for live status.', '正在等待实时状态同步。', 'Esperando sincronización en vivo.'))}</span>
     `;
     return;
   }
 
   const zoneLabel = status.zone ?? resourceLabel(uiResourceId(focus.resourceId), uiLocale);
   const headline = status.mode === 'moving'
-    ? (uiLocale === 'zh' ? `正在前往 ${zoneLabel}` : `Moving to ${zoneLabel}`)
+    ? t(`Moving to ${zoneLabel}`, `正在前往 ${zoneLabel}`, `Moviéndose a ${zoneLabel}`)
     : status.mode === 'working'
-      ? (uiLocale === 'zh' ? `正在处理 ${zoneLabel}` : `Working in ${zoneLabel}`)
+      ? t(`Working in ${zoneLabel}`, `正在处理 ${zoneLabel}`, `Trabajando en ${zoneLabel}`)
       : focus.resourceId === 'break_room'
-        ? (uiLocale === 'zh' ? '正在休息室休息' : 'Resting in Break Room')
-        : (uiLocale === 'zh' ? `停留在 ${zoneLabel}` : `Holding at ${zoneLabel}`);
-  const reasonLabel = uiLocale === 'zh' ? '原因' : 'Reason';
+        ? t('Resting in Break Room', '正在休息室休息', 'Descansando en la Sala')
+        : t(`Holding at ${zoneLabel}`, `停留在 ${zoneLabel}`, `En espera en ${zoneLabel}`);
+  const reasonLabel = t('Reason', '原因', 'Motivo');
   const detail = humanizeTelemetryText(status.detail || focus.detail || '');
 
   hudActorStatus.innerHTML = `
@@ -2122,9 +2190,11 @@ function applyLocaleToChrome(): void {
     hudTitleMain.textContent = uiText('title', uiLocale);
   }
   if (hudTitleSub) {
-    hudTitleSub.textContent = uiLocale === 'zh'
-      ? '面向 OpenClaw 生成资产与运行流的像素游戏风档案馆。'
-      : "A pixel-game archive for OpenClaw's generated assets and runtime flows.";
+    hudTitleSub.textContent = t(
+      "A pixel-game archive for OpenClaw's generated assets and runtime flows.",
+      '面向 OpenClaw 生成资产与运行流的像素游戏风档案馆。',
+      'Archivo pixel de los recursos y flujos de ejecución de OpenClaw.'
+    );
   }
   if (hudActivityTitle) {
     hudActivityTitle.textContent = uiText('recentActivity', uiLocale);
@@ -2136,7 +2206,7 @@ function applyLocaleToChrome(): void {
     menuPanelSub.textContent = uiText('quickRooms', uiLocale);
   }
   if (toggleLocaleButton) {
-    toggleLocaleButton.textContent = uiLocale === 'zh' ? '中 / EN' : 'EN / 中';
+    toggleLocaleButton.textContent = uiLocale === 'zh' ? '中 / EN' : uiLocale === 'es' ? 'ES / EN' : 'EN / 中';
   }
   applyDebugPanelVisibility();
   if (assetModalCopyContext) {
@@ -2176,32 +2246,18 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 function searchPlaceholderForResource(resourceId: ResourcePartitionId): string {
-  if (uiLocale === 'zh') {
-    if (resourceId === 'images') return '搜索角色、房间图层、布局…';
-    if (resourceId === 'skills') return '搜索技能、能力、流程…';
-    if (resourceId === 'document') return '搜索任务、报告、计划…';
-    if (resourceId === 'memory') return '搜索笔记、主题、日期…';
-    if (resourceId === 'log') return '搜索错误、超时、ws…';
-    if (resourceId === 'alarm') return '搜索失败、阻塞任务…';
-    if (resourceId === 'task_queues') return '搜索任务、队列、投递…';
-    if (resourceId === 'agent') return '搜索代码仓库、git、项目…';
-    if (resourceId === 'gateway') return '搜索接口、连接、队列、设备…';
-    if (resourceId === 'mcp') return '搜索代码库、项目、README…';
-    if (resourceId === 'break_room') return '搜索健康、维护、升级…';
-    return '搜索条目…';
-  }
-  if (resourceId === 'images') return 'Search actor, room layer, layout…';
-  if (resourceId === 'skills') return 'Search skill, capability, workflow…';
-  if (resourceId === 'document') return 'Search task, report, plan…';
-  if (resourceId === 'memory') return 'Search note, topic, date…';
-  if (resourceId === 'log') return 'Search error, timeout, ws…';
-  if (resourceId === 'alarm') return 'Search failure, blocked task…';
-  if (resourceId === 'task_queues') return 'Search task, queue, delivery…';
-  if (resourceId === 'agent') return 'Search repository, git, project…';
-  if (resourceId === 'gateway') return 'Search interface, queue, device…';
-  if (resourceId === 'mcp') return 'Search code repo, project, README…';
-  if (resourceId === 'break_room') return 'Search health, maintenance, upgrade…';
-  return 'Search items…';
+  if (resourceId === 'images') return t('Search actor, room layer, layout…', '搜索角色、房间图层、布局…', 'Buscar actor, capa, diseño…');
+  if (resourceId === 'skills') return t('Search skill, capability, workflow…', '搜索技能、能力、流程…', 'Buscar skill, capacidad, flujo…');
+  if (resourceId === 'document') return t('Search task, report, plan…', '搜索任务、报告、计划…', 'Buscar tarea, informe, plan…');
+  if (resourceId === 'memory') return t('Search note, topic, date…', '搜索笔记、主题、日期…', 'Buscar nota, tema, fecha…');
+  if (resourceId === 'log') return t('Search error, timeout, ws…', '搜索错误、超时、ws…', 'Buscar error, timeout, ws…');
+  if (resourceId === 'alarm') return t('Search failure, blocked task…', '搜索失败、阻塞任务…', 'Buscar fallo, tarea bloqueada…');
+  if (resourceId === 'task_queues') return t('Search task, queue, delivery…', '搜索任务、队列、投递…', 'Buscar tarea, cola, entrega…');
+  if (resourceId === 'agent') return t('Search repository, git, project…', '搜索代码仓库、git、项目…', 'Buscar repositorio, git, proyecto…');
+  if (resourceId === 'gateway') return t('Search interface, queue, device…', '搜索接口、连接、队列、设备…', 'Buscar interfaz, cola, dispositivo…');
+  if (resourceId === 'mcp') return t('Search code repo, project, README…', '搜索代码库、项目、README…', 'Buscar código, proyecto, README…');
+  if (resourceId === 'break_room') return t('Search health, maintenance, upgrade…', '搜索健康、维护、升级…', 'Buscar salud, mantenimiento…');
+  return t('Search items…', '搜索条目…', 'Buscar elementos…');
 }
 
 async function copySelectedResourceContext(): Promise<void> {
@@ -2412,7 +2468,7 @@ async function openFolderPath(item: OpenClawResourceItem): Promise<void> {
 async function openPreviewForItem(item: OpenClawResourceItem): Promise<void> {
   const previewPath = item.openPath ?? item.path;
   if (!previewPath) {
-    setModalFeedback(uiLocale === 'zh' ? `无法预览 · ${item.title}` : `Preview unavailable · ${item.title}`, 'error');
+    setModalFeedback(t(`Preview unavailable · ${item.title}`, `无法预览 · ${item.title}`, `Vista previa no disponible · ${item.title}`), 'error');
     return;
   }
   const kind = previewKindOfPath(previewPath);
@@ -2515,7 +2571,7 @@ function renderPreviewModal(): void {
     previewModalNote.textContent = uiText('loadingPreview', uiLocale);
     previewModalBody.innerHTML = `<div class="preview-empty">${escapeHtml(uiText('loadingPreview', uiLocale))}</div>`;
   } else if (previewState.status === 'error') {
-    previewModalNote.textContent = uiLocale === 'zh' ? '预览失败' : 'Preview failed';
+    previewModalNote.textContent = t('Preview failed', '预览失败', 'Vista previa fallida');
     previewModalBody.innerHTML = `<div class="preview-empty">${escapeHtml(previewState.error)}</div>`;
   } else if (previewState.payload) {
     previewModalNote.textContent = previewNoteForPayload(previewState.payload);
@@ -2656,10 +2712,10 @@ function renderRoomModal(): void {
   assetModalTitle.style.color = PARTITION_CSS_COLORS[resource.id] ?? 'rgba(244, 255, 247, 0.94)';
   const defaults = modalDefaultsForResource(resource.id);
   const filterNotes = [
-    modalKindFilter !== 'all' ? (uiLocale === 'zh' ? `分类 ${kindMenuLabelForResource(resource.id, modalKindFilter)}` : `kind ${modalKindFilter}`) : '',
-    modalSearchQuery.trim() ? (uiLocale === 'zh' ? `搜索 “${modalSearchQuery.trim()}”` : `search “${modalSearchQuery.trim()}”`) : '',
-    modalViewMode !== defaults.viewMode ? (uiLocale === 'zh' ? `${modalViewMode === 'grid' ? '网格' : '列表'}视图` : `${modalViewMode} view`) : '',
-    modalSortMode !== defaults.sortMode ? (uiLocale === 'zh' ? `排序 ${modalSortMode}` : `sort ${modalSortMode}`) : ''
+    modalKindFilter !== 'all' ? t(`kind ${modalKindFilter}`, `分类 ${kindMenuLabelForResource(resource.id, modalKindFilter)}`, `tipo ${kindMenuLabelForResource(resource.id, modalKindFilter)}`) : '',
+    modalSearchQuery.trim() ? t(`search "${modalSearchQuery.trim()}"`, `搜索 "${modalSearchQuery.trim()}"`, `buscar "${modalSearchQuery.trim()}"`) : '',
+    modalViewMode !== defaults.viewMode ? t(`${modalViewMode} view`, `${modalViewMode === 'grid' ? '网格' : '列表'}视图`, `vista ${modalViewMode === 'grid' ? 'cuadrícula' : 'lista'}`) : '',
+    modalSortMode !== defaults.sortMode ? t(`sort ${modalSortMode}`, `排序 ${modalSortMode}`, `orden ${modalSortMode}`) : ''
   ].filter(Boolean);
   assetModalSub.textContent = `${resource.itemCount} items · ${humanizeTelemetryText(resource.summary)}${filterNotes.length ? ` · ${filterNotes.join(' · ')}` : ''} · ${clockOf(resource.lastAccessAt)}`;
   if (assetModalContext) {
@@ -2706,7 +2762,7 @@ function renderRoomModal(): void {
     assetModalItems.classList.toggle('grid', false);
     assetModalItems.innerHTML = detailError
       ? `<div class="modal-empty">${escapeHtml(detailError)}<div class="modal-item-actions"><button class="asset-action" type="button" data-retry-detail="${escapeHtml(resource.id)}">Retry</button></div></div>`
-      : `<div class="modal-empty">${uiLocale === 'zh' ? '正在加载资源条目…' : 'Loading resource items…'}</div>`;
+      : `<div class="modal-empty">${t('Loading resource items…', '正在加载资源条目…', 'Cargando elementos…')}</div>`;
     assetModal.classList.remove('hidden');
     assetModal.setAttribute('aria-hidden', 'false');
     return;
@@ -2719,13 +2775,13 @@ function renderRoomModal(): void {
   const items = filteredItems.slice(0, 48);
   const hasActiveFilters = modalKindFilter !== 'all' || modalSearchQuery.trim().length > 0;
   const activeFilterSummary = [
-    modalKindFilter !== 'all' ? (uiLocale === 'zh' ? `分类：${kindMenuLabelForResource(resource.id, modalKindFilter)}` : `kind: ${modalKindFilter}`) : '',
-    modalSearchQuery.trim() ? (uiLocale === 'zh' ? `搜索：“${modalSearchQuery.trim()}”` : `search: “${modalSearchQuery.trim()}”`) : ''
+    modalKindFilter !== 'all' ? t(`kind: ${modalKindFilter}`, `分类：${kindMenuLabelForResource(resource.id, modalKindFilter)}`, `tipo: ${kindMenuLabelForResource(resource.id, modalKindFilter)}`) : '',
+    modalSearchQuery.trim() ? t(`search: "${modalSearchQuery.trim()}"`, `搜索："${modalSearchQuery.trim()}"`, `buscar: "${modalSearchQuery.trim()}"`) : ''
   ].filter(Boolean).join(' · ');
   const showingLabel = filteredItems.length > items.length
-    ? (uiLocale === 'zh' ? `显示 ${items.length} / ${filteredItems.length}` : `showing ${items.length} of ${filteredItems.length}`)
-    : (uiLocale === 'zh' ? `显示 ${items.length}` : `showing ${items.length}`);
-  assetModalSub.textContent = `${resource.itemCount} ${uiLocale === 'zh' ? '项' : 'items'} · ${showingLabel} · ${humanizeTelemetryText(resource.summary)}${filterNotes.length ? ` · ${filterNotes.join(' · ')}` : ''} · ${clockOf(resource.lastAccessAt)}`;
+    ? t(`showing ${items.length} of ${filteredItems.length}`, `显示 ${items.length} / ${filteredItems.length}`, `mostrando ${items.length} de ${filteredItems.length}`)
+    : t(`showing ${items.length}`, `显示 ${items.length}`, `mostrando ${items.length}`);
+  assetModalSub.textContent = `${resource.itemCount} ${t('items', '项', 'elementos')} · ${showingLabel} · ${humanizeTelemetryText(resource.summary)}${filterNotes.length ? ` · ${filterNotes.join(' · ')}` : ''} · ${clockOf(resource.lastAccessAt)}`;
   assetModalItems.classList.toggle('grid', modalViewMode === 'grid');
   assetModalItems.innerHTML = items.length
     ? items.map((entry, index) => {
@@ -2735,7 +2791,8 @@ function renderRoomModal(): void {
         const pathMarkup = highlightMatch(entry.path, modalSearchQuery);
         const previewable = isPreviewableItem(entry);
         const thumb = entry.thumbnailPath ? `<img class="modal-thumb" src="${escapeHtml(entry.thumbnailPath)}" alt="${title}" />` : '';
-        const updatedLabel = entry.updatedAt ? `updated ${clockOf(entry.updatedAt)}` : '';
+        const relativeTime = entry.updatedAt ? timeAgo(entry.updatedAt) : '';
+        const updatedLabel = relativeTime ? `${t('updated', '更新于', 'actualizado')} ${relativeTime}` : '';
         const sizeLabel = formatSize(entry.sizeBytes);
         const accentColor = modalAccentColorForItem(resource.id, entry);
         const kindLabel = kindMenuLabelForResource(resource.id, itemKindGroupOf(resource.id, entry));
@@ -2748,7 +2805,7 @@ function renderRoomModal(): void {
         const isHeroItem = resource.id === 'agent' && index === 0;
         const isCompactItem = resource.id === 'agent' && index > 0;
         const heroLabel = isHeroItem
-          ? `<div class="modal-item-herohead">${uiLocale === 'zh' ? '运行总览' : 'Operational Overview'}</div>`
+          ? `<div class="modal-item-herohead">${t('Operational Overview', '运行总览', 'Vista Operativa')}</div>`
           : '';
         const blockedStat = entry.stats?.find((stat) => stat.label === 'blocked');
         const pendingStat = entry.stats?.find((stat) => stat.label === 'pending');
@@ -2756,17 +2813,17 @@ function renderRoomModal(): void {
         const pendingCount = Number(pendingStat?.value ?? 0);
         const heroPriorityTone = blockedCount > 0 ? 'danger' : pendingCount > 0 ? 'warm' : 'calm';
         const heroPriorityText = blockedCount > 0
-          ? (uiLocale === 'zh' ? '需要立即处理' : 'Needs attention')
+          ? t('Needs attention', '需要立即处理', 'Necesita atención')
           : pendingCount > 0
-            ? (uiLocale === 'zh' ? '队列有积压' : 'Queue pressure')
-            : (uiLocale === 'zh' ? '运行稳定' : 'Running smoothly');
+            ? t('Queue pressure', '队列有积压', 'Presión en cola')
+            : t('Running smoothly', '运行稳定', 'Funcionando correctamente');
         const heroAlert = isHeroItem
           ? `
             <div class="modal-item-heroalert">
               <span class="modal-item-herostatus" data-tone="${escapeHtml(heroPriorityTone)}">${escapeHtml(heroPriorityText)}</span>
-              ${blockedCount > 0 ? `<span class="modal-item-pill" data-tone="danger">${escapeHtml(uiLocale === 'zh' ? `阻塞 ${blockedCount}` : `Blocked ${blockedCount}`)}</span>` : ''}
-              ${pendingCount > 0 ? `<span class="modal-item-pill" data-tone="warm">${escapeHtml(uiLocale === 'zh' ? `排队 ${pendingCount}` : `Pending ${pendingCount}`)}</span>` : ''}
-              ${blockedCount === 0 && pendingCount === 0 ? `<span class="modal-item-pill" data-tone="calm">${escapeHtml(uiLocale === 'zh' ? '队列顺畅' : 'Queue clear')}</span>` : ''}
+              ${blockedCount > 0 ? `<span class="modal-item-pill" data-tone="danger">${escapeHtml(t(`Blocked ${blockedCount}`, `阻塞 ${blockedCount}`, `Bloqueadas ${blockedCount}`))}</span>` : ''}
+              ${pendingCount > 0 ? `<span class="modal-item-pill" data-tone="warm">${escapeHtml(t(`Pending ${pendingCount}`, `排队 ${pendingCount}`, `Pendientes ${pendingCount}`))}</span>` : ''}
+              ${blockedCount === 0 && pendingCount === 0 ? `<span class="modal-item-pill" data-tone="calm">${escapeHtml(t('Queue clear', '队列顺畅', 'Cola despejada'))}</span>` : ''}
             </div>
           `
           : '';
@@ -2871,9 +2928,9 @@ function renderRoomModal(): void {
       }).join('')
     : `
       <div class="modal-empty">
-        ${hasActiveFilters ? (uiLocale === 'zh' ? '当前筛选条件下没有匹配条目。' : 'No items match the current filters.') : (uiLocale === 'zh' ? '这个房间暂时还没有历史条目。' : 'No history items available yet for this room.')}
-        ${hasActiveFilters && activeFilterSummary ? `<div class="modal-item-meta">${escapeHtml(uiLocale === 'zh' ? `当前筛选 · ${activeFilterSummary}` : `Current filters · ${activeFilterSummary}`)}</div>` : ''}
-        ${hasActiveFilters ? `<div class="modal-item-actions"><button class="asset-action" type="button" data-reset-filters="1">${uiLocale === 'zh' ? '清除筛选' : 'Clear Filters'}</button></div>` : ''}
+        ${hasActiveFilters ? t('No items match the current filters.', '当前筛选条件下没有匹配条目。', 'Ningún elemento coincide con los filtros actuales.') : t('No history items available yet for this room.', '这个房间暂时还没有历史条目。', 'Aún no hay historial disponible para esta sala.')}
+        ${hasActiveFilters && activeFilterSummary ? `<div class="modal-item-meta">${escapeHtml(t(`Current filters · ${activeFilterSummary}`, `当前筛选 · ${activeFilterSummary}`, `Filtros activos · ${activeFilterSummary}`))}</div>` : ''}
+        ${hasActiveFilters ? `<div class="modal-item-actions"><button class="asset-action" type="button" data-reset-filters="1">${t('Clear Filters', '清除筛选', 'Limpiar Filtros')}</button></div>` : ''}
       </div>
     `;
 
@@ -3012,7 +3069,7 @@ toggleActorSkinButton?.addEventListener('click', () => {
 });
 
 toggleLocaleButton?.addEventListener('click', () => {
-  uiLocale = uiLocale === 'zh' ? 'en' : 'zh';
+  uiLocale = uiLocale === 'en' ? 'es' : uiLocale === 'es' ? 'zh' : 'en';
   saveLocale();
   applyLocaleToChrome();
   getActiveScene()?.setLocale(uiLocale);
