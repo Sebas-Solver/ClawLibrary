@@ -718,6 +718,15 @@ export class LibraryScene extends Phaser.Scene {
     this.updateLobsterVisual(this.currentActorVisualMode());
   }
 
+  /** Show or hide the primary actor (lobster/main agent) */
+  public setMainActorVisible(visible: boolean): void {
+    this.lobster.setVisible(visible);
+    this.lobsterThoughtText.setVisible(visible);
+    if (this.lobsterContextBar) {
+      this.lobsterContextBar.setVisible(visible);
+    }
+  }
+
   private preloadSceneArt(): void {
     if ((this.protocols.sceneArt.globalLayers?.length ?? 0) === 0) {
       this.loadTextureAsset(LEGACY_BACKGROUND);

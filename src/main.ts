@@ -138,6 +138,44 @@ const previewModalBody = document.getElementById('preview-modal-body');
 const previewModalClose = document.getElementById('preview-modal-close') as HTMLButtonElement | null;
 const previewModalFolder = document.getElementById('preview-modal-folder') as HTMLButtonElement | null;
 const debugOverlay = document.getElementById('debug-overlay');
+const agentRoster = document.getElementById('agent-roster');
+
+const AGENT_VISIBILITY_STORAGE_KEY = 'clawlibrary-agent-visibility-v1';
+
+/** Config agents list (all agents including main) */
+const configAgents: Array<{ id: string; label: string; role: string; description: string; color: string }> =
+  ((appConfig as any).agents ?? []);
+
+/** Visibility state per agent id — persisted in localStorage */
+const agentVisibility = new Map<string, boolean>();
+
+function loadAgentVisibility(): void {
+  try {
+    const raw = localStorage.getItem(AGENT_VISIBILITY_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      for (const [id, visible] of Object.entries(parsed)) {
+        agentVisibility.set(id, Boolean(visible));
+      }
+    }
+  } catch { /* ignore */ }
+  // Default: all agents visible
+  for (const agent of configAgents) {
+    if (!agentVisibility.has(agent.id)) {
+      agentVisibility.set(agent.id, true);
+    }
+  }
+}
+
+function saveAgentVisibility(): void {
+  try {
+    const obj: Record<string, boolean> = {};
+    for (const [id, v] of agentVisibility) obj[id] = v;
+    localStorage.setItem(AGENT_VISIBILITY_STORAGE_KEY, JSON.stringify(obj));
+  } catch { /* ignore */ }
+}
+
+loadAgentVisibility();
 
 type ModalSortMode = 'priority' | 'date-desc' | 'date-asc' | 'size-desc' | 'size-asc';
 type ModalViewMode = 'list' | 'grid';
@@ -2238,6 +2276,52 @@ function applyLocaleToChrome(): void {
   renderHudStats();
   renderRecentActivity();
   renderPreviewModal();
+  renderAgentRoster();
+}
+
+/** Emoji avatars for each agent — will be replaced by real sprites in Phase 4 */
+const AGENT_EMOJI: Record<string, string> = {
+  kora: '🤖',
+  sumi: '👩‍💼',
+  gael: '👨‍⚕️'
+};
+
+/** Role labels per locale */
+function agentRoleLabel(role: string): string {
+  switch (role) {
+    case 'main': return t('Primary Agent', '主代理', 'Agente Principal');
+    case 'assistant': return t('Assistant', '助手', 'Asistente');
+    case 'specialist': return t('Specialist', '专家', 'Especialista');
+    default: return role;
+  }
+}
+
+function renderAgentRoster(): void {
+  if (!agentRoster) return;
+  if (configAgents.length === 0) {
+    agentRoster.style.display = 'none';
+    return;
+  }
+  agentRoster.style.display = '';
+
+  const titleText = t('Agents', '代理', 'Agentes');
+  const cards = configAgents.map((agent) => {
+    const visible = agentVisibility.get(agent.id) !== false;
+    const emoji = AGENT_EMOJI[agent.id] ?? '🔵';
+    const dotColor = visible ? (agent.color || '#7cf0d0') : '#555';
+    const roleText = agentRoleLabel(agent.role);
+
+    return `<div class="agent-card" data-agent-id="${escapeHtml(agent.id)}" data-active="${visible}" title="${escapeHtml(agent.description)}">
+      <div class="agent-card-avatar" style="background: ${visible ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.2)'};">${emoji}</div>
+      <div class="agent-card-info">
+        <div class="agent-card-name">${escapeHtml(agent.label)}</div>
+        <div class="agent-card-role">${escapeHtml(roleText)}</div>
+      </div>
+      <div class="agent-card-dot" style="background: ${dotColor};"></div>
+    </div>`;
+  }).join('');
+
+  agentRoster.innerHTML = `<div class="agent-roster-title">${escapeHtml(titleText)}</div>${cards}`;
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -2970,7 +3054,10 @@ async function refreshTelemetry(): Promise<void> {
     if (activeScene) {
       for (const agent of currentAgents) {
         if (!prevActiveAgentIds.has(agent.id)) {
-          activeScene.spawnAgentActor(agent.id, agent.label, 'subagent');
+          // Respect user's visibility toggle — don't spawn hidden agents
+          if (agentVisibility.get(agent.id) !== false) {
+            activeScene.spawnAgentActor(agent.id, agent.label, 'subagent');
+          }
         }
       }
       // Only despawn non-persistent agents (ephemeral subagents)
@@ -3094,6 +3181,41 @@ toggleInfoPanelButton?.addEventListener('click', () => {
   infoPanelVisible = !infoPanelVisible;
   saveInfoPanelPreference();
   applyInfoPanelVisibility();
+});
+
+// Agent roster: click to toggle agent visibility in the scene
+agentRoster?.addEventListener('click', (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const card = target.closest('.agent-card') as HTMLElement | null;
+  if (!card) return;
+  const agentId = card.dataset.agentId;
+  if (!agentId) return;
+
+  const wasVisible = agentVisibility.get(agentId) !== false;
+  const nowVisible = !wasVisible;
+  agentVisibility.set(agentId, nowVisible);
+  saveAgentVisibility();
+
+  const activeScene = getActiveScene();
+  if (activeScene) {
+    const agent = configAgents.find((a) => a.id === agentId);
+    if (agent) {
+      if (agent.role === 'main') {
+        // Main agent = primary actor (lobster) — toggle its visibility
+        activeScene.setMainActorVisible(nowVisible);
+      } else {
+        // Secondary agent — spawn or despawn
+        if (nowVisible) {
+          activeScene.spawnAgentActor(agentId, agent.label, 'subagent');
+        } else {
+          activeScene.despawnAgentActor(agentId);
+        }
+      }
+    }
+  }
+
+  renderAgentRoster();
 });
 
 gatewayCategoryMenu?.addEventListener('click', (event) => {
