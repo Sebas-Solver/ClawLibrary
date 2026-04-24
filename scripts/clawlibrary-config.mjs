@@ -29,6 +29,7 @@ const DEFAULT_CONFIG = {
   actor: {
     defaultVariantId: 'capy-claw-emoji'
   },
+  agents: [],
   telemetry: {
     pollMs: 2500
   }
@@ -84,6 +85,7 @@ function mergeConfig(base, extra) {
       ...base.actor,
       ...(extra.actor || {})
     },
+    agents: Array.isArray(extra.agents) ? extra.agents : base.agents,
     telemetry: {
       ...base.telemetry,
       ...(extra.telemetry || {})

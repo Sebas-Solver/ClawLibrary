@@ -34,6 +34,9 @@ const RESOURCE_UI_ALIAS: Partial<Record<ResourcePartitionId, ResourcePartitionId
 };
 const DEFAULT_UI_LOCALE = (appConfig.ui.defaultLocale === 'zh' ? 'zh' : appConfig.ui.defaultLocale === 'es' ? 'es' : 'en') as UiLocale;
 
+/** Name of the primary agent from config (the "lobster" actor) */
+const MAIN_AGENT_NAME = ((appConfig as any).agents ?? []).find((a: any) => a.role === 'main')?.label ?? 'Agent';
+
 /** Tri-locale helper: returns the string matching the active uiLocale. */
 function t(en: string, zh: string, es: string): string {
   return uiLocale === 'zh' ? zh : uiLocale === 'es' ? es : en;
@@ -1997,7 +2000,7 @@ function renderActorLiveStatus(): void {
   const focus = lastSnapshot?.focus;
   if (!status || !focus) {
     hudActorStatus.innerHTML = `
-      <strong>${escapeHtml(t('Actor · Waiting', '角色状态 · 等待中', 'Agente · Esperando'))}</strong>
+      <strong>${escapeHtml(t(`${MAIN_AGENT_NAME} · Waiting`, `${MAIN_AGENT_NAME} · 等待中`, `${MAIN_AGENT_NAME} · Esperando`))}</strong>
       <span>${escapeHtml(t('Waiting for live status.', '正在等待实时状态同步。', 'Esperando sincronización en vivo.'))}</span>
     `;
     return;
@@ -2961,7 +2964,7 @@ async function refreshTelemetry(): Promise<void> {
     const activeScene = getActiveScene();
     activeScene?.applyTelemetrySnapshot(lastSnapshot);
 
-    // Diff activeAgents to spawn/despawn secondary actors (subagents)
+    // Diff activeAgents to spawn/despawn secondary actors (subagents + persistent agents)
     const currentAgents = lastSnapshot.activeAgents ?? [];
     const currentAgentIds = new Set(currentAgents.map((agent) => agent.id));
     if (activeScene) {
@@ -2970,8 +2973,12 @@ async function refreshTelemetry(): Promise<void> {
           activeScene.spawnAgentActor(agent.id, agent.label, 'subagent');
         }
       }
+      // Only despawn non-persistent agents (ephemeral subagents)
+      const persistentIds = new Set(
+        currentAgents.filter((a) => a.persistent).map((a) => a.id)
+      );
       for (const prevId of prevActiveAgentIds) {
-        if (!currentAgentIds.has(prevId)) {
+        if (!currentAgentIds.has(prevId) && !persistentIds.has(prevId)) {
           activeScene.despawnAgentActor(prevId);
         }
       }

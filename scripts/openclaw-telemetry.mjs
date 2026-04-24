@@ -1718,12 +1718,30 @@ async function buildLiveResources({ itemResourceIds = null, includeExcerpt = tru
   const agentDirs = (await safeReadDir(path.join(OPENCLAW_ROOT, 'agents'))).filter((entry) => entry.isDirectory()).length;
   const subagentRuns = await safeJsonRead(path.join(OPENCLAW_ROOT, 'subagents', 'runs.json'), { runs: {} });
   const agentRunCount = subagentRuns && typeof subagentRuns.runs === 'object' ? Object.keys(subagentRuns.runs).length : 0;
-  const activeAgents = subagentRuns && typeof subagentRuns.runs === 'object'
+  const ephemeralAgents = subagentRuns && typeof subagentRuns.runs === 'object'
     ? Object.entries(subagentRuns.runs)
         .filter(([, run]) => run && !run.endedAt && !run.outcome)
         .slice(0, 6)
-        .map(([id, run]) => ({ id, label: run.label ?? run.task?.slice(0, 40) ?? id, status: 'running' }))
+        .map(([id, run]) => ({ id, label: run.label ?? run.task?.slice(0, 40) ?? id, status: 'running', persistent: false }))
     : [];
+
+  // Merge persistent agents from config (skip 'main' role — that's the primary actor / lobster)
+  const configuredAgents = (clawlibraryConfig.agents || [])
+    .filter((agent) => agent.role !== 'main')
+    .map((agent) => ({
+      id: agent.id,
+      label: agent.label,
+      status: 'idle',
+      persistent: true,
+      role: agent.role,
+      color: agent.color
+    }));
+  // Deduplicate: if an ephemeral agent matches a configured one, prefer the ephemeral (it has live status)
+  const ephemeralIds = new Set(ephemeralAgents.map((a) => a.id));
+  const activeAgents = [
+    ...configuredAgents.filter((a) => !ephemeralIds.has(a.id)),
+    ...ephemeralAgents
+  ];
   const mainSessionIndexPath = path.join(OPENCLAW_ROOT, 'agents', 'main', 'sessions', 'sessions.json');
   const codexSessionIndexPath = path.join(OPENCLAW_ROOT, 'agents', 'codex', 'sessions', 'sessions.json');
   const mainSessions = await safeJsonRead(mainSessionIndexPath, {});

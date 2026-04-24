@@ -355,6 +355,12 @@ export type ActiveAgent = {
   id: string;
   label: string;
   status: string;
+  /** Whether this agent is always present (from config) vs ephemeral (from subagent runs) */
+  persistent?: boolean;
+  /** Role from config: 'main', 'assistant', 'specialist', etc. */
+  role?: string;
+  /** Accent color from config */
+  color?: string;
 };
 
 export type ActiveExecProcess = {
