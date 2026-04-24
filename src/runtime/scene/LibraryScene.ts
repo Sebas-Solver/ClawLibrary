@@ -83,7 +83,7 @@ type ResourceSelectEvent = {
   anchor?: Point;
 };
 
-type AgentActorKind = 'subagent' | 'exec-process';
+type AgentActorKind = 'subagent' | 'exec-process' | 'persistent';
 
 type AgentActor = {
   id: string;
@@ -375,10 +375,10 @@ export class LibraryScene extends Phaser.Scene {
       return;
     }
 
-    // exec-processes spawn inside the break_room (bottom-right room — Run Dock / Documents Archive)
+    // exec-processes and persistent agents spawn inside the break_room
     // subagents pick any node far from the primary actor
     let startNode = nodes[0];
-    if (kind === 'exec-process') {
+    if (kind === 'exec-process' || kind === 'persistent') {
       const breakRoom = this.protocols.mapLogic.rooms.find((r) => r.id === 'break_room');
       if (breakRoom) {
         const [rx, ry, rw, rh] = breakRoom.bounds;
@@ -542,11 +542,20 @@ export class LibraryScene extends Phaser.Scene {
     }
 
     if (actor.route.length === 0) {
+      // Persistent agents with no focus stay put in the break room (idle)
+      if (actor.kind === 'persistent' && !actor.focusZoneId) {
+        if (actor.visualMode !== 'idle') {
+          actor.visualMode = 'idle';
+          this.updateAgentActorVisual(actor, 'idle');
+        }
+        return;
+      }
+
       // Linger at destination before picking a new route (prevents jitter + frozen loops)
       const now = Date.now();
       if (actor.lingerUntil > 0 && now < actor.lingerUntil) {
         // Still lingering — update visual but don't pick new route
-        if (actor.kind === 'subagent') {
+        if (actor.kind === 'subagent' || actor.kind === 'persistent') {
           const targetMode: WorkMode = actor.workingUntil > 0 && now < actor.workingUntil ? 'working' : 'idle';
           if (actor.visualMode !== targetMode) {
             actor.visualMode = targetMode;

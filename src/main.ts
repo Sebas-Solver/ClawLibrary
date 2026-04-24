@@ -3063,7 +3063,8 @@ async function refreshTelemetry(): Promise<void> {
         if (!prevActiveAgentIds.has(agent.id)) {
           // Respect user's visibility toggle — don't spawn hidden agents
           if (agentVisibility.get(agent.id) !== false) {
-            activeScene.spawnAgentActor(agent.id, agent.label, 'subagent');
+            const spawnKind = (agent as any).persistent ? 'persistent' : 'subagent';
+            activeScene.spawnAgentActor(agent.id, agent.label, spawnKind);
           }
         }
       }
@@ -3214,7 +3215,7 @@ agentRoster?.addEventListener('click', (event) => {
       } else {
         // Secondary agent — spawn or despawn
         if (nowVisible) {
-          activeScene.spawnAgentActor(agentId, agent.label, 'subagent');
+          activeScene.spawnAgentActor(agentId, agent.label, 'persistent');
         } else {
           activeScene.despawnAgentActor(agentId);
         }
