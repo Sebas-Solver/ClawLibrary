@@ -59,6 +59,8 @@ const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'app',
   transparent: true,
+  pixelArt: true,
+  roundPixels: true,
   audio: {
     // AudioContext requires a user gesture before it can start.
     // We resume it on the first pointerdown so the browser doesn't block it.
