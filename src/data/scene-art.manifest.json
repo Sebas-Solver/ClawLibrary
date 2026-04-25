@@ -330,20 +330,32 @@
             "stateIds": ["idle"],
             "textureKey": "kora-robot-stand-front",
             "path": "/assets/generated/actors/kora-robot-v1/sheets/stand_front-spritesheet.png",
-            "kind": "image"
+            "kind": "spritesheet",
+            "frameWidth": 128,
+            "frameHeight": 128,
+            "frameCount": 9,
+            "animation": { "fps": 4, "repeat": -1 }
           },
           {
             "mode": "moving",
             "textureKey": "kora-robot-walk",
             "path": "/assets/generated/actors/kora-robot-v1/sheets/walk-spritesheet.png",
-            "kind": "image"
+            "kind": "spritesheet",
+            "frameWidth": 128,
+            "frameHeight": 128,
+            "frameCount": 9,
+            "animation": { "fps": 6, "repeat": -1 }
           },
           {
             "mode": "working",
             "stateIds": ["writing", "executing", "cataloging", "documenting", "monitoring", "researching", "syncing", "error", "resting"],
             "textureKey": "kora-robot-work",
             "path": "/assets/generated/actors/kora-robot-v1/sheets/work-spritesheet.png",
-            "kind": "image"
+            "kind": "spritesheet",
+            "frameWidth": 128,
+            "frameHeight": 128,
+            "frameCount": 9,
+            "animation": { "fps": 4, "repeat": -1 }
           }
         ]
       },
@@ -356,20 +368,32 @@
             "stateIds": ["idle"],
             "textureKey": "sumi-secretary-stand-front",
             "path": "/assets/generated/actors/sumi-secretary-v1/sheets/stand_front-spritesheet.png",
-            "kind": "image"
+            "kind": "spritesheet",
+            "frameWidth": 128,
+            "frameHeight": 128,
+            "frameCount": 6,
+            "animation": { "fps": 4, "repeat": -1 }
           },
           {
             "mode": "moving",
             "textureKey": "sumi-secretary-walk",
             "path": "/assets/generated/actors/sumi-secretary-v1/sheets/walk-spritesheet.png",
-            "kind": "image"
+            "kind": "spritesheet",
+            "frameWidth": 128,
+            "frameHeight": 128,
+            "frameCount": 8,
+            "animation": { "fps": 6, "repeat": -1 }
           },
           {
             "mode": "working",
             "stateIds": ["writing", "executing", "cataloging", "documenting", "monitoring", "researching", "syncing", "error", "resting"],
             "textureKey": "sumi-secretary-work",
             "path": "/assets/generated/actors/sumi-secretary-v1/sheets/work-spritesheet.png",
-            "kind": "image"
+            "kind": "spritesheet",
+            "frameWidth": 128,
+            "frameHeight": 128,
+            "frameCount": 4,
+            "animation": { "fps": 4, "repeat": -1 }
           }
         ]
       },
@@ -382,20 +406,32 @@
             "stateIds": ["idle"],
             "textureKey": "gael-doctor-stand-front",
             "path": "/assets/generated/actors/gael-doctor-v1/sheets/stand_front-spritesheet.png",
-            "kind": "image"
+            "kind": "spritesheet",
+            "frameWidth": 128,
+            "frameHeight": 128,
+            "frameCount": 6,
+            "animation": { "fps": 4, "repeat": -1 }
           },
           {
             "mode": "moving",
             "textureKey": "gael-doctor-walk",
             "path": "/assets/generated/actors/gael-doctor-v1/sheets/walk-spritesheet.png",
-            "kind": "image"
+            "kind": "spritesheet",
+            "frameWidth": 128,
+            "frameHeight": 128,
+            "frameCount": 6,
+            "animation": { "fps": 6, "repeat": -1 }
           },
           {
             "mode": "working",
             "stateIds": ["writing", "executing", "cataloging", "documenting", "monitoring", "researching", "syncing", "error", "resting"],
             "textureKey": "gael-doctor-work",
             "path": "/assets/generated/actors/gael-doctor-v1/sheets/work-spritesheet.png",
-            "kind": "image"
+            "kind": "spritesheet",
+            "frameWidth": 128,
+            "frameHeight": 128,
+            "frameCount": 6,
+            "animation": { "fps": 4, "repeat": -1 }
           }
         ]
       }
