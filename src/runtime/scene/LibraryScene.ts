@@ -552,14 +552,8 @@ export class LibraryScene extends Phaser.Scene {
     }
 
     if (actor.route.length === 0) {
-      // Persistent agents with no focus stay put in the break room (idle)
-      if (actor.kind === 'persistent' && !actor.focusZoneId) {
-        if (actor.visualMode !== 'idle') {
-          actor.visualMode = 'idle';
-          this.updateAgentActorVisual(actor, 'idle');
-        }
-        return;
-      }
+      // Persistent agents with no focus wander slowly around break_room
+      // (no early return — they still need routes to move)
 
       // Linger at destination before picking a new route (prevents jitter + frozen loops)
       const now = Date.now();
@@ -575,8 +569,8 @@ export class LibraryScene extends Phaser.Scene {
         return;
       }
 
-      // Subagent visual: if working timer expired, revert to idle
-      if (actor.kind === 'subagent') {
+      // Subagent/persistent visual: if working timer expired, revert to idle
+      if (actor.kind === 'subagent' || actor.kind === 'persistent') {
         const targetMode: WorkMode = actor.workingUntil > 0 && now < actor.workingUntil ? 'working' : 'idle';
         if (actor.visualMode !== targetMode) {
           actor.visualMode = targetMode;
@@ -665,8 +659,8 @@ export class LibraryScene extends Phaser.Scene {
       actor.body.setFlipX(dx < 0);
     }
 
-    // Subagent: switch to moving animation while walking
-    if (actor.kind === 'subagent' && actor.visualMode !== 'moving') {
+    // Subagent/persistent: switch to moving animation while walking
+    if ((actor.kind === 'subagent' || actor.kind === 'persistent') && actor.visualMode !== 'moving') {
       actor.visualMode = 'moving';
       this.updateAgentActorVisual(actor, 'moving');
     }
@@ -684,10 +678,10 @@ export class LibraryScene extends Phaser.Scene {
           : 2000 + Math.random() * 3000;  // 2-5s wandering
         actor.lingerUntil = Date.now() + lingerMs;
 
-        // Subagent plays working animation briefly, then idle
-        if (actor.kind === 'subagent') {
+        // Subagent/persistent plays working animation when arriving at destination
+        if (actor.kind === 'subagent' || actor.kind === 'persistent') {
           actor.visualMode = 'working';
-          actor.workingUntil = Date.now() + 1400;
+          actor.workingUntil = Date.now() + 3000 + Math.random() * 4000; // 3-7s for persistent
           this.updateAgentActorVisual(actor, 'working');
         }
       }
