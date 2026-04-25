@@ -1,0 +1,44 @@
+{
+  "kora-robot-v1": {
+    "stand_front": {
+      "path": "/assets/generated/actors/kora-robot-v1/sheets/stand_front-spritesheet.png?v=4",
+      "frameCount": 6
+    },
+    "walk": {
+      "path": "/assets/generated/actors/kora-robot-v1/sheets/walk-spritesheet.png?v=4",
+      "frameCount": 6
+    },
+    "work": {
+      "path": "/assets/generated/actors/kora-robot-v1/sheets/work-spritesheet.png?v=4",
+      "frameCount": 6
+    }
+  },
+  "sumi-secretary-v1": {
+    "stand_front": {
+      "path": "/assets/generated/actors/sumi-secretary-v1/sheets/stand_front-spritesheet.png?v=4",
+      "frameCount": 6
+    },
+    "walk": {
+      "path": "/assets/generated/actors/sumi-secretary-v1/sheets/walk-spritesheet.png?v=4",
+      "frameCount": 6
+    },
+    "work": {
+      "path": "/assets/generated/actors/sumi-secretary-v1/sheets/work-spritesheet.png?v=4",
+      "frameCount": 6
+    }
+  },
+  "gael-doctor-v1": {
+    "stand_front": {
+      "path": "/assets/generated/actors/gael-doctor-v1/sheets/stand_front-spritesheet.png?v=4",
+      "frameCount": 6
+    },
+    "walk": {
+      "path": "/assets/generated/actors/gael-doctor-v1/sheets/walk-spritesheet.png?v=4",
+      "frameCount": 6
+    },
+    "work": {
+      "path": "/assets/generated/actors/gael-doctor-v1/sheets/work-spritesheet.png?v=4",
+      "frameCount": 6
+    }
+  }
+}
