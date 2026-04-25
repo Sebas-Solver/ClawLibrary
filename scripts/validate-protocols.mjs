@@ -162,7 +162,8 @@ for (const slice of sceneArt.roomSlices ?? []) {
       continue;
     }
 
-    const assetPath = path.join(publicRoot, layer.path.replace(/^\/+/, ''));
+    const cleanPath = layer.path.split('?')[0];
+    const assetPath = path.join(publicRoot, cleanPath.replace(/^\/+/, ''));
     if (!fs.existsSync(assetPath)) {
       issues.push(`scene-art layer ${layer.id} asset missing: ${layer.path}`);
     }
@@ -192,7 +193,8 @@ if (sceneArt.actor) {
     }
 
     for (const mode of entry.modes ?? []) {
-      const assetPath = path.join(publicRoot, String(mode.path ?? '').replace(/^\/+/, ''));
+      const cleanPath = String(mode.path ?? '').split('?')[0];
+      const assetPath = path.join(publicRoot, cleanPath.replace(/^\/+/, ''));
       if (!mode.path || !fs.existsSync(assetPath)) {
         issues.push(`scene-art actor texture missing for ${entry.label} mode ${mode.mode}: ${mode.path}`);
       }

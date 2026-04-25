@@ -20,7 +20,7 @@
     "showThemeToggle": false
   },
   "actor": {
-    "defaultVariantId": "capy-claw-emoji"
+    "defaultVariantId": "kora-robot"
   },
   "agents": [
     {
@@ -28,21 +28,24 @@
       "label": "Kora",
       "role": "main",
       "description": "Agente principal — robot humanoide femenina",
-      "color": "#7cf0d0"
+      "color": "#7cf0d0",
+      "variantId": "kora-robot"
     },
     {
       "id": "sumi",
       "label": "Sumi",
       "role": "assistant",
       "description": "Secretaria y organizadora",
-      "color": "#f0a0e0"
+      "color": "#808080",
+      "variantId": "sumi-secretary"
     },
     {
       "id": "gael",
       "label": "Gael",
       "role": "specialist",
       "description": "Médico, nutricionista y coach personal",
-      "color": "#80c0ff"
+      "color": "#80c0ff",
+      "variantId": "gael-doctor"
     }
   ],
   "telemetry": {

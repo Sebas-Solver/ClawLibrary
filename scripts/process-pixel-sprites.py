@@ -154,6 +154,7 @@ def flood_fill_bg(img: Image.Image) -> Image.Image:
         stack.append((0, y))
         stack.append((w-1, y))
     
+    removed = 0
     while stack:
         x, y = stack.pop()
         if x < 0 or x >= w or y < 0 or y >= h:
@@ -176,6 +177,7 @@ def flood_fill_bg(img: Image.Image) -> Image.Image:
         
         if is_bg or is_white or is_lavender or is_checker:
             pixels[x, y] = (0, 0, 0, 0)
+            removed += 1
             for dx, dy in [(-1,0),(1,0),(0,-1),(0,1)]:
                 nx, ny = x+dx, y+dy
                 if 0 <= nx < w and 0 <= ny < h and not visited[nx][ny]:
@@ -424,6 +426,24 @@ def process_all():
             if not frames:
                 print(f"    ⚠ No frames found!")
                 continue
+                
+            # Seleccionamos la variante específica pedida por el usuario
+            # "el 2 para Sumi y Gael y el 3 para Kora" (0-indexed: 1 y 2)
+            target_idx = 0
+            if "kora" in agent_id:
+                target_idx = 2
+            elif "sumi" in agent_id or "gael" in agent_id:
+                target_idx = 1
+                
+            if target_idx < len(frames):
+                frames = [frames[target_idx]]
+            else:
+                frames = [frames[0]]
+                
+            # Duplicamos el frame 9 veces para que Phaser pueda reproducir
+            # la animación (definida en el manifest) sin dar errores y 
+            # sin parpadear entre distintos diseños.
+            frames = frames * 9
             
             sheet, count = build_spritesheet(frames, FRAME_SIZE)
             

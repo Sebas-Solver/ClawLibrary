@@ -2547,6 +2547,16 @@ function ensureSceneBindings(): void {
   });
 
   sceneEventsBound = true;
+
+  // Auto-spawn persistent secondary agents (Sumi, Gael, etc.) with their
+  // correct variant sprite.  Without this, agents only appeared when
+  // telemetry reported them active — and the telemetry path sometimes
+  // lost the variantId, causing every agent to render with the default skin.
+  for (const agent of configAgents) {
+    if (agent.role === 'main') continue; // main agent is the lobster/primary actor
+    if (agentVisibility.get(agent.id) === false) continue; // respect user toggle
+    activeScene.spawnAgentActor(agent.id, agent.label, 'persistent', agent.variantId);
+  }
 }
 
 async function openFolderPath(item: OpenClawResourceItem): Promise<void> {
