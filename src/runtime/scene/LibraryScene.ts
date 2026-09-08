@@ -642,7 +642,22 @@ export class LibraryScene extends Phaser.Scene {
       }
 
       if (actor.route.length === 0) {
-        actor.activeZoneId = null;
+        const dist = Math.hypot(zone.anchor.x - actor.container.x, zone.anchor.y - actor.container.y);
+        if (dist < 10) {
+          // Already at destination, simulate arrival
+          actor.container.x = zone.anchor.x;
+          actor.container.y = zone.anchor.y;
+          const lingerMs = actor.focusZoneId ? 5000 + Math.random() * 5000 : 2000 + Math.random() * 3000;
+          actor.lingerUntil = Date.now() + lingerMs;
+          if (actor.kind === 'subagent' || actor.kind === 'persistent') {
+            actor.visualMode = 'working';
+            actor.workingUntil = Date.now() + 3000 + Math.random() * 4000;
+            this.updateAgentActorVisual(actor, 'working');
+          }
+        } else {
+          actor.activeZoneId = null;
+          actor.lingerUntil = Date.now() + 2000 + Math.random() * 2000;
+        }
       }
       return;
     }
